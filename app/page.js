@@ -103,9 +103,20 @@ const [email, setEmail] = useState("");
 const [password, setPassword] = useState("");
   const [recoveryMode, setRecoveryMode] = useState(false);
 const [newPassword, setNewPassword] = useState("");
-const [user, setUser] = useState(null);
-const [authBusy, setAuthBusy] = useState(false);
-  useEffect(() => {
+if (error) {
+  setNotice(error.message);
+  return;
+}
+
+setUser(data.session?.user ?? null);
+    
+
+  if (event === "PASSWORD_RECOVERY") {
+    setRecoveryMode(true);
+    setPage("login");
+    setNotice("Yeni şifreni belirleyebilirsin.");
+  }
+}
     try {
       const saved = localStorage.getItem("boss-game-data");
 

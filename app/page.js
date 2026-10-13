@@ -176,21 +176,18 @@ const handleAuth = async (mode) => {
   }
 };
 
-const resetPassword = async () => {
-  if (!email.trim()) {
-    setNotice("Önce e-posta adresini yaz.");
-    return;
-  }
+if (error) throw error;
 
-  const { error } = await supabase.auth.resetPasswordForEmail(
-    email.trim(),
-    { redirectTo: window.location.origin }
-  );
+setNotice("Şifre değiştirme bağlantısı e-posta adresine gönderildi. Gelen kutunu ve spam klasörünü kontrol et.");
+  
+    
+    
+  
+    
 
-  setNotice(
-    error ? error.message : "Şifre sıfırlama e-postası gönderildi."
-  );
-};
+
+  
+
 
 const signOut = async () => {
   const { error } = await supabase.auth.signOut();

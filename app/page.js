@@ -1,7 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-
+import { createClient } from "@supabase/supabase-js";
+const supabase = createClient(
+  "https://klmjyeljhfozthxocjit.supabase.co",
+  "sb_publishable_omCeokV2Z1-LibvDRVOQuQ_Y6htlTvl"
+);
 const VIP_LEVELS = [
   {
     id: 1,
@@ -95,7 +99,10 @@ export default function Home() {
   const [jackpotWins, setJackpotWins] = useState(0);
   const [giftedCoins, setGiftedCoins] = useState(0);
   const [notice, setNotice] = useState("");
-
+const [email, setEmail] = useState("");
+const [password, setPassword] = useState("");
+const [user, setUser] = useState(null);
+const [authBusy, setAuthBusy] = useState(false);
   useEffect(() => {
     try {
       const saved = localStorage.getItem("boss-game-data");
@@ -127,7 +134,68 @@ export default function Home() {
 
     localStorage.setItem("boss-game-data", JSON.stringify(data));
   }, [coins, vip, totalEarned, gamesPlayed, jackpotWins, giftedCoins]);
+ useEffect(() => {
+  supabase.auth.getSession().then(({ data }) => {
+    setUser(data.session?.user ?? null);
+  });
 
+  const { data: listener } = supabase.auth.onAuthStateChange(
+    (_event, session) => {
+      setUser(session?.user ?? null);
+    }
+  );
+
+  return () => listener.subscription.unsubscribe();
+}, []);
+
+const handleAuth = async (mode) => {
+  setAuthBusy(true);
+  setNotice("");
+
+  try {
+    const result =
+      mode === "signup"
+        ? await supabase.auth.signUp({ email: email.trim(), password })
+        : await supabase.auth.signInWithPassword({
+            email: email.trim(),
+            password,
+          });
+
+    if (result.error) throw result.error;
+
+    if (mode === "signup" && !result.data.session) {
+      setNotice("Kayıt oluşturuldu! E-postanı doğrula.");
+    } else {
+      setUser(result.data.user ?? null);
+      setNotice("İşlem başarılı!");
+    }
+  } catch (error) {
+    setNotice(error.message || "Bir hata oluştu.");
+  } finally {
+    setAuthBusy(false);
+  }
+};
+
+const resetPassword = async () => {
+  if (!email.trim()) {
+    setNotice("Önce e-posta adresini yaz.");
+    return;
+  }
+
+  const { error } = await supabase.auth.resetPasswordForEmail(
+    email.trim(),
+    { redirectTo: window.location.origin }
+  );
+
+  setNotice(
+    error ? error.message : "Şifre sıfırlama e-postası gönderildi."
+  );
+};
+
+const signOut = async () => {
+  const { error } = await supabase.auth.signOut();
+  setNotice(error ? error.message : "Çıkış yapıldı.");
+};
   const notify = (message) => {
     setNotice(message);
   };
@@ -448,14 +516,121 @@ export default function Home() {
       )}
 
       {page === "login" && (
-        <section style={panelStyle}>
-          <h2>👤 Üyelik Sistemi</h2>
-          <p>
-            Gerçek kayıt ve giriş sistemi için kimlik doğrulama altyapısı
-            kurulmalıdır.
-          </p>
-        </section>
-      )}
+  <section style={panelStyle}>
+    <h2 style={{ color: "#f5c542" }}>
+      👑 BOSS GAME ÜYELİK
+    </h2>
+
+    {user ? (
+      <>
+        <h3 style={{ color: "#5be39a" }}>
+          ✓ Başarıyla giriş yaptın!
+        </h3>
+
+        <p>Hesabın: {user.email}</p>
+
+        <button
+          style={buttonStyle}
+          onClick={signOut}
+        >
+          Çıkış Yap
+        </button>
+      </>
+    ) : (
+      <>
+        <p>Hesabına giriş yap veya yeni hesap oluştur.</p>
+
+        <input
+          type="email"
+          placeholder="E-posta adresin"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          style={{
+            display: "block",
+            width: "100%",
+            maxWidth: 400,
+            boxSizing: "border-box",
+            margin: "12px auto",
+            padding: 14,
+            borderRadius: 8,
+            background: "#222233",
+            color: "white",
+            border: "1px solid #555"
+          }}
+        />
+
+        <input
+          type="password"
+          placeholder="Şifren (en az 6 karakter)"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          style={{
+            display: "block",
+            width: "100%",
+            maxWidth: 400,
+            boxSizing: "border-box",
+            margin: "12px auto",
+            padding: 14,
+            borderRadius: 8,
+            background: "#222233",
+            color: "white",
+            border: "1px solid #555"
+          }}
+        />
+
+        <div style={{
+          display: "flex",
+          justifyContent: "center",
+          gap: 10,
+          flexWrap: "wrap",
+          marginTop: 18
+        }}>
+          <button
+            style={buttonStyle}
+            disabled={authBusy}
+            onClick={() => handleAuth("signup")}
+          >
+            {authBusy ? "Bekle..." : "📝 Kayıt Ol"}
+          </button>
+
+          <button
+            style={{
+              ...buttonStyle,
+              background: "#34344c",
+              color: "white"
+            }}
+            disabled={authBusy}
+            onClick={() => handleAuth("login")}
+          >
+            🔑 Giriş Yap
+          </button>
+        </div>
+
+        <button
+          disabled={authBusy}
+          onClick={resetPassword}
+          style={{
+            background: "transparent",
+            color: "#f5c542",
+            border: "none",
+            padding: 16,
+            cursor: "pointer"
+          }}
+        >
+          Şifremi Unuttum
+        </button>
+      </>
+    )}
+  </section>
+)}
+      
+          
+          
+        
+          
+          
+        
+  
 
       <footer
         style={{

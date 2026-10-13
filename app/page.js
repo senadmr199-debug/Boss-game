@@ -141,11 +141,10 @@ const [authBusy, setAuthBusy] = useState(false);
     setUser(data.session?.user ?? null);
   });
 
-  const { data: listener } = supabase.auth.onAuthStateChange(
-    (_event, session) => {
-      setUser(session?.user ?? null);
-    }
-  );
+ if (event === "PASSWORD_RECOVERY") {
+  setRecoveryMode(true);
+  setNotice("Yeni şifreni belirleyebilirsin.");
+}
 
   return () => listener.subscription.unsubscribe();
 }, []);

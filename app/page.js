@@ -208,6 +208,59 @@ const handleAuth = async (mode) => {
     setAuthBusy(false);
   }
 };
+const resetPassword = async () => {
+  if (!email.trim()) {
+    setNotice("Lütfen e-posta adresini gir.");
+    return;
+  }
+
+  setAuthBusy(true);
+  setNotice("");
+
+  try {
+    const { error } = await supabase.auth.resetPasswordForEmail(
+      email.trim(),
+      {
+        redirectTo: window.location.origin,
+      }
+    );
+
+    if (error) throw error;
+
+    setNotice("Şifre sıfırlama bağlantısı e-posta adresine gönderildi.");
+  } catch (error) {
+    setNotice(error.message || "Şifre sıfırlama bağlantısı gönderilemedi.");
+  } finally {
+    setAuthBusy(false);
+  }
+};
+
+const updatePassword = async () => {
+  if (newPassword.length < 6) {
+    setNotice("Yeni şifren en az 6 karakter olmalı.");
+    return;
+  }
+
+  setAuthBusy(true);
+  setNotice("");
+
+  try {
+    const { error } = await supabase.auth.updateUser({
+      password: newPassword,
+    });
+
+    if (error) throw error;
+
+    setPassword(newPassword);
+    setNewPassword("");
+    setRecoveryMode(false);
+    setNotice("Şifren başarıyla değiştirildi!");
+  } catch (error) {
+    setNotice(error.message || "Şifre değiştirilemedi.");
+  } finally {
+    setAuthBusy(false);
+  }
+};
 
 if (error) throw error;
 

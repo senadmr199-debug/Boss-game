@@ -103,12 +103,12 @@ const [email, setEmail] = useState("");
 const [password, setPassword] = useState("");
   const [recoveryMode, setRecoveryMode] = useState(false);
 const [newPassword, setNewPassword] = useState("");
-if (error) {
-  setNotice(error.message);
-  return;
-}
+const [user, setUser] = useState(null);
+const [authBusy, setAuthBusy] = useState(false);  
 
-setUser(data.session?.user ?? null);
+
+
+
     
 
   if (event === "PASSWORD_RECOVERY") {

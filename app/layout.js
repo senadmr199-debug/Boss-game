@@ -11,3 +11,7 @@ return (
 {children}
 );
 }
+      </body>
+    </html>
+  );
+}

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 const supabase = createClient(
   "https://klmjyeljhfozthxocjit.supabase.co",
-  "sb_publishable_omCeokV2Z1-LibvDRVOQuQ_Y6htlTvl"
+  "sb_publishable_omCeokV2Z1-LIBvDRVOQuQ_Y6htlTvl"
 );
 const VIP_LEVELS = [
   {

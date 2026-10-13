@@ -148,16 +148,37 @@ setUser(data.session?.user ?? null);
     localStorage.setItem("boss-game-data", JSON.stringify(data));
   }, [coins, vip, totalEarned, gamesPlayed, jackpotWins, giftedCoins]);
  useEffect(() => {
-  supabase.auth.getSession().then(({ data }) => {
+  let mounted = true;
+
+  supabase.auth.getSession().then(({ data, error }) => {
+    if (!mounted) return;
+
+    if (error) {
+      setNotice(error.message);
+      return;
+    }
+
     setUser(data.session?.user ?? null);
   });
 
- if (event === "PASSWORD_RECOVERY") {
-  setRecoveryMode(true);
-  setNotice("Yeni şifreni belirleyebilirsin.");
-}
+  const { data: listener } = supabase.auth.onAuthStateChange(
+    (event, session) => {
+      if (!mounted) return;
 
-  return () => listener.subscription.unsubscribe();
+      setUser(session?.user ?? null);
+
+      if (event === "PASSWORD_RECOVERY") {
+        setRecoveryMode(true);
+        setPage("login");
+        setNotice("Yeni şifreni belirleyebilirsin.");
+      }
+    }
+  );
+
+  return () => {
+    mounted = false;
+    listener.subscription.unsubscribe();
+  };
 }, []);
 
 const handleAuth = async (mode) => {

@@ -101,6 +101,8 @@ export default function Home() {
   const [notice, setNotice] = useState("");
 const [email, setEmail] = useState("");
 const [password, setPassword] = useState("");
+  const [recoveryMode, setRecoveryMode] = useState(false);
+const [newPassword, setNewPassword] = useState("");
 const [user, setUser] = useState(null);
 const [authBusy, setAuthBusy] = useState(false);
   useEffect(() => {

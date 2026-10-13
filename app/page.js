@@ -211,9 +211,14 @@ const handleAuth = async (mode) => {
 
 if (error) throw error;
 
-setNotice("Şifre değiştirme bağlantısı e-posta adresine gönderildi. Gelen kutunu ve spam klasörünü kontrol et.");
+setNotice("Şifre sıfırlama bağlantısı e-posta adresine gönderildi.");
   
-    
+if (error) throw error;
+
+setPassword(newPassword);
+setNewPassword("");
+setRecoveryMode(false);
+setNotice("Şifren başarıyla değiştirildi!");    
     
   
     

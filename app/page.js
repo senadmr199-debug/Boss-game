@@ -1,69 +1,474 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+
+const VIP_LEVELS = [
+  {
+    id: 1,
+    name: "SVIP 1",
+    price: 100000000,
+    multiplier: "2x",
+    features: [
+      "🌈 Renkli kullanıcı adı",
+      "💰 Oyun kazançlarında 2x çarpan",
+      "📢 Üstten kayan bildirim",
+      "☑️ Onaylı kullanıcı rozeti",
+    ],
+  },
+  {
+    id: 2,
+    name: "SVIP 2",
+    price: 150000000,
+    multiplier: "5x",
+    features: [
+      "🌈 Özel renkli kullanıcı adı",
+      "💎 Oyun kazançlarında 5x çarpan",
+      "☑️ Onaylı kullanıcı rozeti",
+    ],
+  },
+];
+
+const ACHIEVEMENTS = [
+  {
+    id: "lucky",
+    name: "Şanslı Oyuncu",
+    icon: "🍀",
+    description: "Jackpot oyunundan 1.000.000 coin kazan.",
+  },
+  {
+    id: "generous",
+    name: "Cömert",
+    icon: "🎁",
+    description: "Diğer oyunculara toplam 2.000.000 coin hediye et.",
+  },
+  {
+    id: "rich",
+    name: "Para Babası",
+    icon: "💰",
+    description: "Toplam 10.000.000 coin kazan.",
+  },
+  {
+    id: "jackpot",
+    name: "Jackpot Ustası",
+    icon: "🎰",
+    description: "5 kez Jackpot kazan.",
+  },
+  {
+    id: "legend",
+    name: "Efsane Oyuncu",
+    icon: "🏆",
+    description: "100 oyun tamamla.",
+  },
+  {
+    id: "vip",
+    name: "VIP Koleksiyoncusu",
+    icon: "👑",
+    description: "SVIP seviyelerinden birini satın al.",
+  },
+];
+
+const panelStyle = {
+  background: "#151522",
+  border: "1px solid #303047",
+  borderRadius: 16,
+  padding: 20,
+  margin: "18px auto",
+  maxWidth: 700,
+};
+
+const buttonStyle = {
+  background: "linear-gradient(135deg, #f5c542, #e69b16)",
+  color: "#111",
+  border: "none",
+  borderRadius: 10,
+  padding: "12px 18px",
+  fontWeight: "bold",
+  cursor: "pointer",
+};
 
 export default function Home() {
   const [page, setPage] = useState("home");
+  const [coins, setCoins] = useState(1000);
+  const [vip, setVip] = useState(0);
+  const [totalEarned, setTotalEarned] = useState(0);
+  const [gamesPlayed, setGamesPlayed] = useState(0);
+  const [jackpotWins, setJackpotWins] = useState(0);
+  const [giftedCoins, setGiftedCoins] = useState(0);
+  const [notice, setNotice] = useState("");
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("boss-game-data");
+
+      if (saved) {
+        const data = JSON.parse(saved);
+
+        setCoins(data.coins ?? 1000);
+        setVip(data.vip ?? 0);
+        setTotalEarned(data.totalEarned ?? 0);
+        setGamesPlayed(data.gamesPlayed ?? 0);
+        setJackpotWins(data.jackpotWins ?? 0);
+        setGiftedCoins(data.giftedCoins ?? 0);
+      }
+    } catch {
+      setNotice("Kayıtlı oyun verileri okunamadı.");
+    }
+  }, []);
+
+  useEffect(() => {
+    const data = {
+      coins,
+      vip,
+      totalEarned,
+      gamesPlayed,
+      jackpotWins,
+      giftedCoins,
+    };
+
+    localStorage.setItem("boss-game-data", JSON.stringify(data));
+  }, [coins, vip, totalEarned, gamesPlayed, jackpotWins, giftedCoins]);
+
+  const notify = (message) => {
+    setNotice(message);
+  };
+
+  const buyVip = (level) => {
+    const selected = VIP_LEVELS.find((item) => item.id === level);
+
+    if (!selected) return;
+
+    if (vip >= level) {
+      notify("Bu VIP seviyesine zaten sahipsin!");
+      return;
+    }
+
+    if (coins < selected.price) {
+      notify(
+        `Yetersiz coin! ${selected.price.toLocaleString("tr-TR")} coin gerekiyor.`
+      );
+      return;
+    }
+
+    setCoins((current) => current - selected.price);
+    setVip(level);
+    notify(`${selected.name} başarıyla satın alındı! 👑`);
+  };
+
+  const achievements = {
+    lucky: jackpotWins > 0,
+    generous: giftedCoins >= 2000000,
+    rich: totalEarned >= 10000000,
+    jackpot: jackpotWins >= 5,
+    legend: gamesPlayed >= 100,
+    vip: vip >= 1,
+  };
+
+  const activeVip = VIP_LEVELS.find((item) => item.id === vip);
 
   return (
-    <main style={{
-      minHeight: "100vh",
-      background: "#09090f",
-      color: "white",
-      fontFamily: "Arial, sans-serif",
-      padding: 20,
-      textAlign: "center"
-    }}>
-      <h1 style={{color: "#f5c542", fontSize: 42}}>
+    <main
+      style={{
+        minHeight: "100vh",
+        background:
+          "radial-gradient(ellipse at top, #24203a 0%, #09090f 55%)",
+        color: "white",
+        fontFamily: "Arial, sans-serif",
+        padding: "22px 14px",
+        textAlign: "center",
+        boxSizing: "border-box",
+      }}
+    >
+      <h1
+        style={{
+          color: "#f5c542",
+          fontSize: "clamp(32px, 7vw, 48px)",
+          textShadow: "0 0 22px #f5c54255",
+          marginBottom: 8,
+        }}
+      >
         👑 BOSS GAME
       </h1>
 
-      <p>Oyunun patronu sensin!</p>
+      <p style={{ color: "#c9c6d8" }}>Oyunun patronu sensin!</p>
 
-      <div style={{
-        display: "flex",
-        justifyContent: "center",
-        gap: 10,
-        flexWrap: "wrap",
-        margin: "25px 0"
-      }}>
-        <button onClick={() => setPage("home")}>Ana Sayfa</button>
-        <button onClick={() => setPage("slot")}>🎰 Slot</button>
-        <button onClick={() => setPage("rooms")}>🎙️ Sesli Odalar</button>
-        <button onClick={() => setPage("login")}>👤 Giriş</button>
+      <div style={panelStyle}>
+        <div style={{ fontSize: 14, color: "#aaa" }}>COIN BAKİYEN</div>
+        <div
+          style={{
+            color: "#f5c542",
+            fontSize: 30,
+            fontWeight: "bold",
+            margin: "8px 0",
+          }}
+        >
+          🪙 {coins.toLocaleString("tr-TR")}
+        </div>
+
+        <div style={{ color: "#c9c6d8" }}>
+          {activeVip ? `Aktif üyeliğin: ${activeVip.name}` : "Standart Üye"}
+        </div>
       </div>
 
+      <nav
+        style={{
+          display: "flex",
+          justifyContent: "center",
+          gap: 8,
+          flexWrap: "wrap",
+          margin: "24px auto",
+          maxWidth: 800,
+        }}
+      >
+        {[
+          ["home", "🏠 Ana Sayfa"],
+          ["slot", "🎰 Slot"],
+          ["rooms", "🎙️ Sesli Odalar"],
+          ["login", "👤 Giriş"],
+          ["vip", "👑 VIP Market"],
+          ["badges", "🏆 Rozetler"],
+        ].map(([id, label]) => (
+          <button
+            key={id}
+            onClick={() => {
+              setPage(id);
+              setNotice("");
+            }}
+            style={{
+              ...buttonStyle,
+              background:
+                page === id ? "#f5c542" : "#222233",
+              color: page === id ? "#111" : "white",
+              border:
+                page === id
+                  ? "1px solid #f5c542"
+                  : "1px solid #3b3b50",
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </nav>
+
+      {notice && (
+        <div
+          role="status"
+          style={{
+            ...panelStyle,
+            color: "#f5c542",
+            borderColor: "#f5c542",
+          }}
+        >
+          {notice}
+        </div>
+      )}
+
       {page === "home" && (
+        <section style={panelStyle}>
+          <h2>✨ BOSS GAME&apos;e Hoş Geldin</h2>
+          <p>Oyna, coin biriktir ve başarılarını aç!</p>
+
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "center",
+              gap: 12,
+              flexWrap: "wrap",
+              marginTop: 24,
+            }}
+          >
+            <button
+              style={buttonStyle}
+              onClick={() => setPage("vip")}
+            >
+              👑 VIP Seviyelerini Gör
+            </button>
+
+            <button
+              style={{
+                ...buttonStyle,
+                background: "#34344c",
+                color: "white",
+              }}
+              onClick={() => setPage("badges")}
+            >
+              🏆 Başarılarım
+            </button>
+          </div>
+        </section>
+      )}
+
+      {page === "vip" && (
         <section>
-          <h2>BOSS GAME'e Hoş Geldin</h2>
-          <p>Oyna, puan kazan ve eğlen!</p>
-          <p>🪙 Coin bakiyen: 1000</p>
+          <h2 style={{ color: "#f5c542" }}>👑 VIP MARKET</h2>
+          <p>Coinlerinle VIP seviyeni yükselt.</p>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
+              gap: 16,
+              maxWidth: 800,
+              margin: "20px auto",
+            }}
+          >
+            {VIP_LEVELS.map((level) => {
+              const owned = vip >= level.id;
+
+              return (
+                <article
+                  key={level.id}
+                  style={{
+                    ...panelStyle,
+                    width: "auto",
+                    margin: 0,
+                    borderColor:
+                      level.id === 2 ? "#a855f7" : "#f5c542",
+                    boxShadow:
+                      level.id === 2
+                        ? "0 0 22px #a855f722"
+                        : "0 0 22px #f5c54211",
+                  }}
+                >
+                  <h3
+                    style={{
+                      fontSize: 28,
+                      color: level.id === 2 ? "#d8a7ff" : "#f5c542",
+                    }}
+                  >
+                    {level.id === 1 ? "💎" : "👑"} {level.name}
+                  </h3>
+
+                  <div
+                    style={{
+                      fontSize: 21,
+                      fontWeight: "bold",
+                      margin: "18px 0",
+                    }}
+                  >
+                    🪙 {level.price.toLocaleString("tr-TR")}
+                  </div>
+
+                  {level.features.map((feature) => (
+                    <p key={feature} style={{ color: "#ddd" }}>
+                      {feature}
+                    </p>
+                  ))}
+
+                  <button
+                    style={{
+                      ...buttonStyle,
+                      width: "100%",
+                      marginTop: 14,
+                      opacity: owned ? 0.6 : 1,
+                    }}
+                    disabled={owned}
+                    onClick={() => buyVip(level.id)}
+                  >
+                    {owned
+                      ? "✓ Sahipsin"
+                      : "VIP Satın Al"}
+                  </button>
+                </article>
+              );
+            })}
+          </div>
+
+          <p style={{ color: "#aaa", fontSize: 13 }}>
+            VIP fiyatları oyun içi coin cinsindendir.
+          </p>
+        </section>
+      )}
+
+      {page === "badges" && (
+        <section>
+          <h2 style={{ color: "#f5c542" }}>🏆 BAŞARI ROZETLERİ</h2>
+          <p>Görevleri tamamla, rozetlerini topla!</p>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+              gap: 12,
+              maxWidth: 850,
+              margin: "20px auto",
+            }}
+          >
+            {ACHIEVEMENTS.map((achievement) => {
+              const unlocked = achievements[achievement.id];
+
+              return (
+                <article
+                  key={achievement.id}
+                  style={{
+                    ...panelStyle,
+                    margin: 0,
+                    opacity: unlocked ? 1 : 0.7,
+                    borderColor: unlocked ? "#f5c542" : "#303047",
+                  }}
+                >
+                  <div style={{ fontSize: 42 }}>
+                    {achievement.icon}
+                  </div>
+
+                  <h3 style={{ color: unlocked ? "#f5c542" : "white" }}>
+                    {achievement.name}
+                  </h3>
+
+                  <p style={{ color: "#c9c6d8", fontSize: 14 }}>
+                    {achievement.description}
+                  </p>
+
+                  <strong style={{ color: unlocked ? "#5be39a" : "#999" }}>
+                    {unlocked ? "✓ Açıldı" : "🔒 Kilitli"}
+                  </strong>
+                </article>
+              );
+            })}
+          </div>
         </section>
       )}
 
       {page === "slot" && (
-        <section>
+        <section style={panelStyle}>
           <h2>🎰 Slot Oyunu</h2>
-          <p>Slot oyunu sonraki aşamada eklenecek.</p>
+          <p>
+            Slot oyununun gerçek oyun mekaniği henüz bu dosyada bulunmuyor.
+          </p>
+          <p style={{ color: "#f5c542" }}>
+            Sonraki aşamada oyun sistemi bağlanabilir.
+          </p>
         </section>
       )}
 
       {page === "rooms" && (
-        <section>
+        <section style={panelStyle}>
           <h2>🎙️ Sesli Sohbet</h2>
-          <p>Sesli odaları sonraki aşamada bağlayacağız.</p>
+          <p>Sesli oda ve mikrofon sistemi henüz bağlanmadı.</p>
         </section>
       )}
 
       {page === "login" && (
-        <section>
-          <h2>👤 Üyelik</h2>
-          <p>Kayıt ve giriş sistemi sonraki aşamada bağlanacak.</p>
+        <section style={panelStyle}>
+          <h2>👤 Üyelik Sistemi</h2>
+          <p>
+            Gerçek kayıt ve giriş sistemi için kimlik doğrulama altyapısı
+            kurulmalıdır.
+          </p>
         </section>
       )}
 
-      <footer style={{marginTop: 60, color: "#999"}}>
+      <footer
+        style={{
+          marginTop: 55,
+          padding: 20,
+          color: "#777",
+          borderTop: "1px solid #242432",
+        }}
+      >
         BOSS GAME © 2026
+        <p style={{ fontSize: 12 }}>
+          Oyun içi coinler demo sürümünde tarayıcıda saklanır.
+        </p>
       </footer>
     </main>
   );

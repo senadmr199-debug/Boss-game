@@ -309,7 +309,43 @@ const signOut = async () => {
     setVip(level);
     notify(`${selected.name} başarıyla satın alındı! 👑`);
   };
+const playSlot = () => {
+  if (slotSpinning || coins < 100) return;
 
+  setCoins((current) => current - 100);
+  setSlotSpinning(true);
+  setSlotMessage("");
+
+  const symbols = ["🍒", "🍋", "🍇", "💎", "7️⃣"];
+  const timer = setTimeout(() => {
+    const result = Array.from(
+      { length: 3 },
+      () => symbols[Math.floor(Math.random() * symbols.length)]
+    );
+
+    setSlotSymbols(result);
+
+    if (result.every((symbol) => symbol === "7️⃣")) {
+      setCoins((current) => current + 5000);
+      setTotalEarned((current) => current + 5000);
+      setJackpotWins((current) => current + 1);
+      setSlotMessage("🎉 JACKPOT! +5.000 COIN!");
+    } else if (result.every((symbol) => symbol === result[0])) {
+      setCoins((current) => current + 1000);
+      setTotalEarned((current) => current + 1000);
+      setSlotMessage("💎 MEGA KAZANÇ! +1.000 COIN!");
+    } else if (result[0] === result[1] || result[1] === result[2]) {
+      setCoins((current) => current + 200);
+      setTotalEarned((current) => current + 200);
+      setSlotMessage("✨ KAZANDIN! +200 COIN!");
+    } else {
+      setSlotMessage("🍀 Bu sefer olmadı. Tekrar dene!");
+    }
+
+    setGamesPlayed((current) => current + 1);
+    setSlotSpinning(false);
+  }, 1200);
+};
   const achievements = {
     lucky: jackpotWins > 0,
     generous: giftedCoins >= 2000000,
@@ -584,17 +620,92 @@ const signOut = async () => {
         </section>
       )}
 
-      {page === "slot" && (
-        <section style={panelStyle}>
-          <h2>🎰 Slot Oyunu</h2>
-          <p>
-            Slot oyununun gerçek oyun mekaniği henüz bu dosyada bulunmuyor.
-          </p>
-          <p style={{ color: "#f5c542" }}>
-            Sonraki aşamada oyun sistemi bağlanabilir.
-          </p>
-        </section>
-      )}
+   {page === "slot" && (
+  <section
+    style={{
+      ...panelStyle,
+      maxWidth: 500,
+      background: "linear-gradient(180deg, #241333, #09090f)",
+      border: "2px solid #f5c542",
+      boxShadow: "0 0 30px #f5c54233",
+    }}
+  >
+    <h2 style={{ color: "#f5c542", fontSize: 30 }}>
+      👑 MEGA SLOT
+    </h2>
+
+    <p style={{ color: "#ddd" }}>
+      Çevirme başına 100 coin
+    </p>
+
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "center",
+        gap: 10,
+        margin: "28px 0",
+        padding: 18,
+        background: "#09090f",
+        border: "2px solid #a855f7",
+        borderRadius: 16,
+      }}
+    >
+      {slotSymbols.map((symbol, index) => (
+        <div
+          key={index}
+          style={{
+            width: 85,
+            height: 95,
+            display: "grid",
+            placeItems: "center",
+            background: "#fff",
+            borderRadius: 12,
+            fontSize: 48,
+            boxShadow: "inset 0 0 12px #f5c542",
+          }}
+        >
+          {symbol}
+        </div>
+      ))}
+    </div>
+
+    <div style={{ color: "#f5c542", fontSize: 20, margin: 16 }}>
+      🪙 Bakiye: {coins.toLocaleString("tr-TR")}
+    </div>
+
+    <button
+      style={{
+        ...buttonStyle,
+        width: "100%",
+        fontSize: 20,
+        padding: 16,
+        opacity: slotSpinning || coins < 100 ? 0.5 : 1,
+      }}
+      disabled={slotSpinning || coins < 100}
+      onClick={playSlot}
+    >
+      {slotSpinning ? "🎰 ÇEVRİLİYOR..." : "🎰 100 COIN İLE ÇEVİR"}
+    </button>
+
+    {slotMessage && (
+      <div
+        role="status"
+        style={{
+          marginTop: 20,
+          color: "#f5c542",
+          fontSize: 18,
+          fontWeight: "bold",
+        }}
+      >
+        {slotMessage}
+      </div>
+    )}
+
+    <p style={{ color: "#aaa", fontSize: 12, marginTop: 20 }}>
+      Demo oyunudur. Coinler oyun içi puanlardır; gerçek para değeri yoktur.
+    </p>
+  </section>
+)}   
 
       {page === "rooms" && (
         <section style={panelStyle}>

@@ -2273,6 +2273,36 @@ notify(`👑 ${selected.name} satın alındı!`);
   })}
 </section>
 {page === "svip" && renderSVIP()}
+  {SVIP_LEVELS.map((item) => {
+    const owned = (data.vip || 0) >= item.id;
+
+    return (
+      <div key={item.id} style={cardStyle}>
+        <h2 style={{ color: "#d8a8ff", textAlign: "center" }}>
+          💎 {item.name}
+        </h2>
+
+        <h3 style={{ color: "#fff", textAlign: "center" }}>
+          {formatCoins(item.price)} Coin
+        </h3>
+
+        {item.features.map((feature) => (
+          <p key={feature} style={{ color: "#ddd" }}>
+            {feature}
+          </p>
+        ))}
+
+        <button
+          onClick={() => buySVIP(item.id)}
+          disabled={owned}
+          style={{ ...buttonStyle, width: "100%" }}
+        >
+          {owned ? "✅ SAHİPSİN" : `${item.name} SATIN AL`}
+        </button>
+      </div>
+    );
+  })}
+</section>
   // Başarı rozetleri
   const renderBadges = () => (
     <section style={panelStyle}>

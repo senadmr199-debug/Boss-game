@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 
 const supabase = createClient(
@@ -9,6 +9,27 @@ const supabase = createClient(
 );
 
 const STORAGE_KEY = "boss-game-data";
+
+const SYMBOLS = ["🍒", "🍋", "🍇", "💎", "7️⃣", "👑"];
+
+const DEFAULT_DATA = {
+  coins: 1000,
+  diamonds: 0,
+  vip: 0,
+  totalEarned: 0,
+  gamesPlayed: 0,
+  jackpotWins: 0,
+  giftedCoins: 0,
+  xp: 0,
+  level: 1,
+  dailyClaimDate: "",
+  dailyStreak: 0,
+  profileName: "Royal Oyuncu",
+  profileImage: "",
+  ownedFrames: [],
+  activeFrame: "",
+  slotHistory: [],
+};
 
 const VIP_LEVELS = [
   {
@@ -47,13 +68,13 @@ const ACHIEVEMENTS = [
     id: "generous",
     name: "Cömert",
     icon: "🎁",
-    description: "Toplam 2.000.000 coin hediye et.",
+    description: "2.000.000 coin hediye et.",
   },
   {
     id: "rich",
     name: "Para Babası",
     icon: "💰",
-    description: "Toplam 10.000.000 coin kazan.",
+    description: "10.000.000 coin kazan.",
   },
   {
     id: "jackpot",
@@ -74,8 +95,6 @@ const ACHIEVEMENTS = [
     description: "VIP satın al.",
   },
 ];
-
-const SYMBOLS = ["🍒", "🍋", "🍇", "💎", "7️⃣", "👑"];
 
 const FRAMES = [
   {
@@ -115,6 +134,7 @@ const panelStyle = {
   padding: 18,
   margin: "18px auto",
   maxWidth: 760,
+  width: "100%",
   boxSizing: "border-box",
 };
 
@@ -145,50 +165,28 @@ const formatCoins = (value) =>
   Math.floor(Number(value) || 0).toLocaleString("tr-TR");
 
 const dateKey = () => {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const day = String(now.getDate()).padStart(2, "0");
+  const date = new Date();
 
-  return `${year}-${month}-${day}`;
+  return `${date.getFullYear()}-${String(
+    date.getMonth() + 1
+  ).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 };
 
 const yesterdayKey = () => {
   const date = new Date();
   date.setDate(date.getDate() - 1);
 
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-
-  return `${year}-${month}-${day}`;
-};
-
-const defaultData = {
-  coins: 1000,
-  diamonds: 0,
-  vip: 0,
-  totalEarned: 0,
-  gamesPlayed: 0,
-  jackpotWins: 0,
-  giftedCoins: 0,
-  xp: 0,
-  level: 1,
-  dailyClaimDate: "",
-  dailyStreak: 0,
-  profileName: "Royal Oyuncu",
-  profileImage: "",
-  ownedFrames: [],
-  activeFrame: "",
-  slotHistory: [],
+  return `${date.getFullYear()}-${String(
+    date.getMonth() + 1
+  ).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 };
 
 export default function Home() {
   const [page, setPage] = useState("home");
-  const [data, setData] = useState(defaultData);
-  const [gameDataLoaded, setGameDataLoaded] = useState(false);
-
+  const [data, setData] = useState(DEFAULT_DATA);
+  const [loaded, setLoaded] = useState(false);
   const [notice, setNotice] = useState("");
+
   const [profileNameInput, setProfileNameInput] = useState("");
   const [giftAmount, setGiftAmount] = useState("100");
   const [giftRecipient, setGiftRecipient] = useState("");
@@ -205,17 +203,23 @@ export default function Home() {
     "👑",
     "💎",
   ]);
+
   const [slotSpinning, setSlotSpinning] = useState(false);
   const [slotMessage, setSlotMessage] = useState("");
   const [slotBet, setSlotBet] = useState(100);
   const [customBet, setCustomBet] = useState("100");
+
   const [fastSpin, setFastSpin] = useState(false);
   const [autoSpin, setAutoSpin] = useState(false);
   const [autoSpinCount, setAutoSpinCount] = useState(10);
   const [autoRemaining, setAutoRemaining] = useState(0);
-  const [slotHistory, setSlotHistory] = useState([]);
+
   const [soundEnabled, setSoundEnabled] = useState(false);
   const [slotEffect, setSlotEffect] = useState(false);
+
+  const spinTimerRef = useRef(null);
+  const autoTimerRef = useRef(null);
+  const latestRef = useRef({});
 
   const coins = data.coins;
   const diamonds = data.diamonds;
@@ -223,36 +227,24 @@ export default function Home() {
   const xp = data.xp;
   const level = data.level;
 
-  const updateData = (changes) => {
-    setData((current) => ({
-      ...current,
-      ...changes,
-    }));
-  };
+  const notify = useCallback((message) => {
+    setNotice(message);
+  }, []);
 
-  const addCoins = (amount) => {
-    setData((current) => ({
-      ...current,
-      coins: Math.max(0, current.coins + amount),
-    }));
-  };
-
-  const addXP = (amount) => {
+  const addXP = useCallback((amount) => {
     setData((current) => {
       const nextXP = current.xp + amount;
-      const nextLevel = Math.floor(nextXP / 1000) + 1;
 
       return {
         ...current,
         xp: nextXP,
-        level: nextLevel,
+        level: Math.floor(nextXP / 1000) + 1,
       };
     });
-  };
+  }, []);
+    const spinLockRef = useRef(false);
 
-  const notify = (message) => setNotice(message);
-
-  // Kayıtlı verileri yükle.
+  // Kayıtlı oyun verilerini yükle
   useEffect(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
@@ -260,296 +252,377 @@ export default function Home() {
       if (saved) {
         const parsed = JSON.parse(saved);
 
-        const merged = {
-          ...defaultData,
+        setData({
+          ...DEFAULT_DATA,
           ...parsed,
-        };
-
-        setData(merged);
-        setSlotHistory(
-          Array.isArray(merged.slotHistory)
-            ? merged.slotHistory.slice(0, 10)
-            : []
-        );
-        setProfileNameInput(merged.profileName || "");
+        });
       }
-    } catch {
-      setNotice("Kayıtlı veriler yüklenemedi.");
+    } catch (error) {
+      console.error("Oyun verileri yüklenemedi:", error);
     } finally {
-      setGameDataLoaded(true);
+      setLoaded(true);
     }
   }, []);
 
-  // Değişiklikleri kaydet.
+  // Oyun verilerini telefona kaydet
   useEffect(() => {
-    if (!gameDataLoaded) return;
+    if (!loaded) return;
 
     try {
-      localStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify({
-          ...data,
-          slotHistory,
-        })
-      );
-    } catch {
-      setNotice(
-        "Depolama alanı dolmuş olabilir. Profil fotoğrafını küçültüp tekrar deneyebilirsin."
-      );
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    } catch (error) {
+      console.error("Oyun verileri kaydedilemedi:", error);
     }
-  }, [data, slotHistory, gameDataLoaded]);
+  }, [data, loaded]);
 
-  // Supabase oturumu.
+  // Oturum açma durumunu kontrol et
   useEffect(() => {
     let mounted = true;
 
-    supabase.auth.getSession().then(({ data: sessionData, error }) => {
-      if (!mounted) return;
-
-      if (error) {
-        setNotice(error.message);
-        return;
+    supabase.auth.getSession().then(({ data: sessionData }) => {
+      if (mounted) {
+        setUser(sessionData.session?.user ?? null);
       }
-
-      setUser(sessionData.session?.user ?? null);
     });
 
-    const { data: listener } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        if (!mounted) return;
-
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (mounted) {
         setUser(session?.user ?? null);
-
-        if (event === "PASSWORD_RECOVERY") {
-          setRecoveryMode(true);
-          setPage("login");
-          setNotice("Yeni şifreni belirleyebilirsin.");
-        }
       }
-    );
+    });
 
     return () => {
       mounted = false;
-      listener.subscription.unsubscribe();
+      subscription.unsubscribe();
     };
   }, []);
 
-  // Ses efekti.
-  const playSound = (type) => {
-    if (!soundEnabled || typeof window === "undefined") return;
+  // Güncel değerleri slot sistemine aktar
+  latestRef.current = {
+    data,
+    slotBet,
+    fastSpin,
+    soundEnabled,
+  };
+
+  // Basit ses efekti
+  const playSound = useCallback(() => {
+    if (!latestRef.current.soundEnabled) return;
 
     try {
-      const AudioClass =
+      const AudioContextClass =
         window.AudioContext || window.webkitAudioContext;
 
-      if (!AudioClass) return;
+      if (!AudioContextClass) return;
 
-      const audio = new AudioClass();
+      const audio = new AudioContextClass();
       const oscillator = audio.createOscillator();
       const gain = audio.createGain();
 
+      oscillator.type = "sine";
+      oscillator.frequency.value = 600;
+
+      gain.gain.value = 0.05;
+
       oscillator.connect(gain);
       gain.connect(audio.destination);
-      oscillator.type = "sine";
-
-      oscillator.frequency.value =
-        type === "jackpot" ? 1200 : type === "win" ? 880 : 330;
-
-      gain.gain.setValueAtTime(0.1, audio.currentTime);
-      gain.gain.exponentialRampToValueAtTime(
-        0.001,
-        audio.currentTime + 0.2
-      );
 
       oscillator.start();
-      oscillator.stop(audio.currentTime + 0.2);
 
-      oscillator.onended = () => {
-        audio.close().catch(() => {});
-      };
-    } catch {
-      // Ses desteklenmiyorsa oyuna devam edilir.
+      oscillator.stop(audio.currentTime + 0.12);
+      oscillator.onended = () => audio.close();
+    } catch (error) {
+      console.log("Ses oynatılamadı.");
     }
-  };
+  }, []);
 
-  // XP ve seviye bilgisi.
-  const xpInLevel = xp % 1000;
-  const xpPercent = (xpInLevel / 1000) * 100;
+  // Slot oyununu başlat
+  const playSlot = useCallback(() => {
+    if (spinLockRef.current) return;
 
-  // Günlük ödül.
-  const claimDailyReward = () => {
-    const today = dateKey();
+    const current = latestRef.current;
+    const bet = Math.floor(Number(current.slotBet));
 
-    if (data.dailyClaimDate === today) {
-      notify("Bugünkü ödülünü zaten aldın. Yarın tekrar gel!");
+    if (!Number.isFinite(bet) || bet < 100) {
+      setSlotMessage("⚠️ Minimum bahis 100 coin!");
       return;
     }
 
-    const streak =
-      data.dailyClaimDate === yesterdayKey()
-        ? Math.min(data.dailyStreak + 1, 7)
-        : 1;
+    if (bet > 1000000) {
+      setSlotMessage("⚠️ Maksimum bahis 1.000.000 coin!");
+      return;
+    }
 
-    const rewardCoins = 500 + streak * 250;
-    const rewardDiamonds = streak >= 7 ? 5 : streak >= 3 ? 2 : 1;
+    if (current.data.coins < bet) {
+      setSlotMessage("❌ Yeterli coin yok!");
+      setAutoSpin(false);
+      setAutoRemaining(0);
+      return;
+    }
 
-    setData((current) => ({
-      ...current,
-      coins: current.coins + rewardCoins,
-      diamonds: current.diamonds + rewardDiamonds,
-      xp: current.xp + 100,
-      level: Math.floor((current.xp + 100) / 1000) + 1,
-      dailyClaimDate: today,
-      dailyStreak: streak,
+    spinLockRef.current = true;
+    setSlotSpinning(true);
+    setSlotEffect(false);
+    setSlotMessage("🎰 Şansını deniyorsun...");
+
+    // Bahis miktarını düşür
+    setData((previous) => ({
+      ...previous,
+      coins: previous.coins - bet,
+      gamesPlayed: previous.gamesPlayed + 1,
     }));
 
-    notify(
-      `🎁 Günlük ödül: ${formatCoins(rewardCoins)} coin, ${rewardDiamonds} elmas ve 100 XP!`
-    );
-  };
+    playSound();
 
-  // Profil fotoğrafı.
-  const handleProfileImage = (event) => {
-    const file = event.target.files?.[0];
+    const delay = current.fastSpin ? 500 : 1400;
 
-    if (!file) return;
+    spinTimerRef.current = setTimeout(() => {
+      const symbols = SYMBOLS;
 
-    if (!file.type.startsWith("image/")) {
-      notify("Lütfen bir resim dosyası seç.");
-      return;
-    }
+      const result = [
+        symbols[Math.floor(Math.random() * symbols.length)],
+        symbols[Math.floor(Math.random() * symbols.length)],
+        symbols[Math.floor(Math.random() * symbols.length)],
+      ];
 
-    if (file.size > 700 * 1024) {
-      notify("Fotoğraf en fazla 700 KB olmalı.");
-      return;
-    }
+      setSlotSymbols(result);
 
-    const reader = new FileReader();
+      const allSame =
+        result[0] === result[1] && result[1] === result[2];
 
-    reader.onload = () => {
-      updateData({
-        profileImage: String(reader.result || ""),
+      const twoSame =
+        result[0] === result[1] ||
+        result[1] === result[2] ||
+        result[0] === result[2];
+
+      let multiplier = 0;
+      let message = "😅 Bu sefer olmadı! Tekrar dene.";
+
+      if (allSame && result[0] === "👑") {
+        multiplier = 100;
+        message = "👑 KRALİYET JACKPOT! Muhteşem!";
+      } else if (allSame && result[0] === "7️⃣") {
+        multiplier = 50;
+        message = "🎉 JACKPOT! Büyük kazanç!";
+      } else if (allSame) {
+        multiplier = 10;
+        message = "🔥 Üçlü eşleşme! Kazandın!";
+      } else if (twoSame) {
+        multiplier = 2;
+        message = "✨ İkili eşleşme! Kazandın!";
+      }
+
+      const currentVIP = latestRef.current.data.vip;
+
+      const vipMultiplier =
+        currentVIP >= 2 ? 5 : currentVIP >= 1 ? 2 : 1;
+
+      const payout = Math.floor(
+        bet * multiplier * vipMultiplier
+      );
+
+      setData((previous) => {
+        const nextHistory = [
+          {
+            symbols: result,
+            bet,
+            payout,
+            date: new Date().toLocaleTimeString("tr-TR"),
+          },
+          ...previous.slotHistory,
+        ].slice(0, 10);
+
+        return {
+          ...previous,
+          coins: previous.coins + payout,
+          totalEarned: previous.totalEarned + payout,
+          diamonds:
+            previous.diamonds +
+            (multiplier >= 50 ? 2 : multiplier >= 10 ? 1 : 0),
+          jackpotWins:
+            previous.jackpotWins + (multiplier >= 50 ? 1 : 0),
+          xp: previous.xp + 25,
+          level: Math.floor((previous.xp + 25) / 1000) + 1,
+          slotHistory: nextHistory,
+        };
       });
-      notify("Profil fotoğrafın güncellendi!");
-    };
 
-    reader.onerror = () => {
-      notify("Fotoğraf okunamadı.");
-    };
+      if (payout > 0) {
+        message += ` +${formatCoins(payout)} coin`;
+        setSlotEffect(true);
+      }
 
-    reader.readAsDataURL(file);
+      setSlotMessage(message);
+      setSlotSpinning(false);
+      spinLockRef.current = false;
+
+      if (autoSpin) {
+        setAutoRemaining((previous) => Math.max(0, previous - 1));
+      }
+
+      if (autoSpin && autoRemaining <= 1) {
+        setAutoSpin(false);
+        setAutoRemaining(0);
+      }
+    }, delay);
+  }, [playSound, autoSpin, autoRemaining]);
+
+  // Otomatik çevirme sistemi
+  useEffect(() => {
+    if (!autoSpin || slotSpinning || autoRemaining <= 0) {
+      return;
+    }
+
+    autoTimerRef.current = setTimeout(() => {
+      playSlot();
+    }, 300);
+
+    return () => {
+      if (autoTimerRef.current) {
+        clearTimeout(autoTimerRef.current);
+      }
+    };
+  }, [autoSpin, slotSpinning, autoRemaining, playSlot]);
+
+  // Sayfadan ayrılırken zamanlayıcıları temizle
+  useEffect(() => {
+    return () => {
+      if (spinTimerRef.current) {
+        clearTimeout(spinTimerRef.current);
+      }
+
+      if (autoTimerRef.current) {
+        clearTimeout(autoTimerRef.current);
+      }
+    };
+  }, []);
+
+  // Bahis miktarını değiştir
+  const changeBet = (amount) => {
+    const nextBet = Math.floor(Number(amount));
+
+    if (!Number.isFinite(nextBet)) return;
+
+    const safeBet = Math.max(100, Math.min(1000000, nextBet));
+
+    setSlotBet(safeBet);
+    setCustomBet(String(safeBet));
   };
 
-  const saveProfileName = () => {
-    const name = profileNameInput.trim();
+  // Otomatik oyunu başlat
+  const startAutoSpin = () => {
+    if (slotSpinning || spinLockRef.current) return;
 
-    if (name.length < 2 || name.length > 20) {
-      notify("Kullanıcı adı 2–20 karakter arasında olmalı.");
+    if (data.coins < slotBet) {
+      setSlotMessage("❌ Otomatik oyun için yeterli coin yok!");
       return;
     }
 
-    updateData({ profileName: name });
-    notify("Profilin güncellendi!");
+    setAutoRemaining(autoSpinCount);
+    setAutoSpin(true);
+    setSlotMessage(`🔄 ${autoSpinCount} otomatik oyun başlatıldı!`);
   };
 
-  // Çerçeve satın alma.
-  const buyFrame = (frame) => {
-    if (data.ownedFrames.includes(frame.id)) {
-      updateData({ activeFrame: frame.id });
-      notify(`${frame.name} aktif edildi!`);
-      return;
-    }
+  // Otomatik oyunu durdur
+  const stopAutoSpin = () => {
+    setAutoSpin(false);
+    setAutoRemaining(0);
+    setSlotMessage("⏹️ Otomatik oyun durduruldu.");
+  };
 
-    if (diamonds < frame.price) {
-      notify("Bu çerçeve için yeterli elmasın yok.");
-      return;
-    }
+  // Coin kazanma işlemi
+  const addCoins = (amount) => {
+    const value = Math.floor(Number(amount));
 
-    setData((current) => ({
-      ...current,
-      diamonds: current.diamonds - frame.price,
-      ownedFrames: [...current.ownedFrames, frame.id],
-      activeFrame: frame.id,
+    if (!Number.isFinite(value) || value <= 0) return;
+
+    setData((previous) => ({
+      ...previous,
+      coins: previous.coins + value,
+      totalEarned: previous.totalEarned + value,
     }));
-
-    notify(`${frame.name} satın alındı ve aktif edildi!`);
   };
 
-  // Demo amaçlı coin hediye etme.
-  const giftCoinsToPlayer = () => {
-    const amount = Number(giftAmount);
-    const recipient = giftRecipient.trim();
+  // Elmas ekleme işlemi
+  const addDiamonds = (amount) => {
+    const value = Math.floor(Number(amount));
 
-    if (recipient.length < 2) {
-      notify("Hediye göndereceğin oyuncunun adını yaz.");
-      return;
-    }
+    if (!Number.isFinite(value) || value <= 0) return;
 
-    if (
-      !Number.isSafeInteger(amount) ||
-      amount < 100 ||
-      amount > 1000000
-    ) {
-      notify("Hediye miktarı 100–1.000.000 coin olmalı.");
-      return;
-    }
-
-    if (coins < amount) {
-      notify("Bu hediye için yeterli coin yok.");
-      return;
-    }
-
-    updateData({
-      coins: coins - amount,
-      giftedCoins: data.giftedCoins + amount,
-    });
-
-    setGiftRecipient("");
-    notify(
-      `🎁 ${recipient} oyuncusuna ${formatCoins(amount)} coin hediye edildi. Demo işlemidir; diğer oyuncunun hesabına aktarılmaz.`
-    );
+    setData((previous) => ({
+      ...previous,
+      diamonds: previous.diamonds + value,
+    }));
   };
-
-  // Kayıt ve giriş.
-  const handleAuth = async (mode) => {
+    // Üye ol
+  const handleSignUp = async () => {
     if (!email.trim() || !password) {
-      notify("E-posta ve şifreni gir.");
+      notify("⚠️ E-posta ve şifre gir!");
+      return;
+    }
+
+    if (password.length < 6) {
+      notify("⚠️ Şifre en az 6 karakter olmalı!");
       return;
     }
 
     setAuthBusy(true);
-    setNotice("");
 
     try {
-      const result =
-        mode === "signup"
-          ? await supabase.auth.signUp({
-              email: email.trim(),
-              password,
-            })
-          : await supabase.auth.signInWithPassword({
-              email: email.trim(),
-              password,
-            });
+      const { data: result, error } = await supabase.auth.signUp({
+        email: email.trim(),
+        password,
+      });
 
-      if (result.error) throw result.error;
+      if (error) throw error;
 
-      if (mode === "signup" && !result.data.session) {
-        notify("Kayıt oluşturuldu. E-posta adresini doğrula.");
+      if (result.session) {
+        setUser(result.session.user);
+        notify("✅ Kayıt başarılı!");
       } else {
-        setUser(result.data.user ?? null);
-        notify("İşlem başarılı!");
+        notify("📩 E-postanı kontrol et. Doğrulama gerekiyorsa bağlantıya tıkla.");
       }
     } catch (error) {
-      notify(error.message || "Bir hata oluştu.");
+      notify("❌ Kayıt başarısız: " + error.message);
     } finally {
       setAuthBusy(false);
     }
   };
 
-  const resetPassword = async () => {
+  // Giriş yap
+  const handleLogin = async () => {
+    if (!email.trim() || !password) {
+      notify("⚠️ E-posta ve şifre gir!");
+      return;
+    }
+
+    setAuthBusy(true);
+
+    try {
+      const { data: result, error } =
+        await supabase.auth.signInWithPassword({
+          email: email.trim(),
+          password,
+        });
+
+      if (error) throw error;
+
+      setUser(result.user);
+      notify("✅ Giriş başarılı!");
+      setPage("home");
+    } catch (error) {
+      notify("❌ Giriş başarısız: " + error.message);
+    } finally {
+      setAuthBusy(false);
+    }
+  };
+
+  // Şifre yenileme e-postası gönder
+  const handlePasswordRecovery = async () => {
     if (!email.trim()) {
-      notify("E-posta adresini gir.");
+      notify("⚠️ Önce e-posta adresini yaz!");
       return;
     }
 
@@ -558,22 +631,25 @@ export default function Home() {
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(
         email.trim(),
-        { redirectTo: window.location.origin }
+        {
+          redirectTo: window.location.origin,
+        }
       );
 
       if (error) throw error;
 
-      notify("Şifre sıfırlama bağlantısı gönderildi.");
+      notify("📩 Şifre yenileme bağlantısı e-postana gönderildi.");
     } catch (error) {
-      notify(error.message || "Bağlantı gönderilemedi.");
+      notify("❌ İşlem başarısız: " + error.message);
     } finally {
       setAuthBusy(false);
     }
   };
 
-  const updatePassword = async () => {
+  // Yeni şifre kaydet
+  const handleNewPassword = async () => {
     if (newPassword.length < 6) {
-      notify("Yeni şifren en az 6 karakter olmalı.");
+      notify("⚠️ Yeni şifre en az 6 karakter olmalı!");
       return;
     }
 
@@ -588,1433 +664,1953 @@ export default function Home() {
 
       setNewPassword("");
       setRecoveryMode(false);
-      notify("Şifren değiştirildi!");
+      notify("✅ Şifren başarıyla değiştirildi.");
     } catch (error) {
-      notify(error.message || "Şifre değiştirilemedi.");
+      notify("❌ Şifre değiştirilemedi: " + error.message);
     } finally {
       setAuthBusy(false);
     }
   };
 
-  const signOut = async () => {
+  // Çıkış yap
+  const handleLogout = async () => {
     const { error } = await supabase.auth.signOut();
 
-    setNotice(error ? error.message : "Çıkış yapıldı.");
+    if (error) {
+      notify("❌ Çıkış yapılamadı: " + error.message);
+      return;
+    }
 
-    if (!error) setUser(null);
+    setUser(null);
+    setPage("home");
+    notify("👋 Oturum kapatıldı.");
   };
 
-  // VIP satın alma.
-  const buyVip = (levelId) => {
-    const selected = VIP_LEVELS.find(
-      (item) => item.id === levelId
+  // Günlük ödül
+  const claimDailyReward = () => {
+    const today = dateKey();
+
+    if (data.dailyClaimDate === today) {
+      notify("⏳ Günlük ödülünü bugün zaten aldın!");
+      return;
+    }
+
+    const streak =
+      data.dailyClaimDate === yesterdayKey()
+        ? data.dailyStreak + 1
+        : 1;
+
+    const reward = Math.min(500 + (streak - 1) * 100, 2000);
+
+    setData((previous) => ({
+      ...previous,
+      coins: previous.coins + reward,
+      totalEarned: previous.totalEarned + reward,
+      dailyClaimDate: today,
+      dailyStreak: streak,
+    }));
+
+    notify(
+      `🎁 Günlük ödülün: ${formatCoins(reward)} coin! ${streak}. gün`
     );
+  };
+
+  // Başka bir oyuncuya coin hediye et
+  const sendGift = () => {
+    const amount = Math.floor(Number(giftAmount));
+
+    if (!giftRecipient.trim()) {
+      notify("⚠️ Hediye alacak oyuncunun adını gir!");
+      return;
+    }
+
+    if (!Number.isFinite(amount) || amount < 1) {
+      notify("⚠️ Geçerli bir coin miktarı gir!");
+      return;
+    }
+
+    if (amount > data.coins) {
+      notify("❌ Yeterli coin yok!");
+      return;
+    }
+
+    setData((previous) => ({
+      ...previous,
+      coins: previous.coins - amount,
+      giftedCoins: previous.giftedCoins + amount,
+    }));
+
+    setGiftRecipient("");
+    notify(
+      `🎁 ${giftRecipient} için ${formatCoins(amount)} coinlik hediye hazırlandı.`
+    );
+  };
+
+  // VIP satın al
+  const buyVIP = (vipLevel) => {
+    const selected = VIP_LEVELS.find((item) => item.id === vipLevel);
 
     if (!selected) return;
 
-    if (vip >= levelId) {
-      notify("Bu VIP seviyesine zaten sahipsin!");
+    if (data.vip >= vipLevel) {
+      notify("👑 Bu VIP seviyesine zaten sahipsin!");
       return;
     }
 
-    if (coins < selected.price) {
+    if (data.coins < selected.price) {
       notify(
-        `${formatCoins(selected.price)} coin gerekiyor.`
+        `❌ Bu VIP için ${formatCoins(selected.price)} coin gerekiyor.`
       );
       return;
     }
 
-    setData((current) => ({
-      ...current,
-      coins: current.coins - selected.price,
-      vip: levelId,
+    setData((previous) => ({
+      ...previous,
+      coins: previous.coins - selected.price,
+      vip: vipLevel,
     }));
 
-    notify(`${selected.name} satın alındı! 👑`);
+    notify(`👑 ${selected.name} satın alındı!`);
   };
 
-  // Bahis.
-  const selectBet = (amount) => {
-    if (slotSpinning || autoSpin) return;
+  // Elmasla çerçeve satın al
+  const buyFrame = (frame) => {
+    if (data.ownedFrames.includes(frame.id)) {
+      setData((previous) => ({
+        ...previous,
+        activeFrame: frame.id,
+      }));
 
-    setSlotBet(amount);
-    setCustomBet(String(amount));
-    setSlotMessage("");
-  };
-
-  const applyCustomBet = () => {
-    if (slotSpinning || autoSpin) return;
-
-    const amount = Number(customBet);
-
-    if (
-      !Number.isSafeInteger(amount) ||
-      amount < 100 ||
-      amount > 1000000
-    ) {
-      notify("Bahis 100–1.000.000 coin arasında olmalı.");
+      notify(`🖼️ ${frame.name} kuşanıldı!`);
       return;
     }
 
-    setSlotBet(amount);
-    setSlotMessage("");
-    notify(`Bahis: ${formatCoins(amount)} coin`);
+    if (data.diamonds < frame.price) {
+      notify(
+        `💎 Bu çerçeve için ${frame.price} elmas gerekiyor.`
+      );
+      return;
+    }
+
+    setData((previous) => ({
+      ...previous,
+      diamonds: previous.diamonds - frame.price,
+      ownedFrames: [...previous.ownedFrames, frame.id],
+      activeFrame: frame.id,
+    }));
+
+    notify(`✅ ${frame.name} satın alındı ve kuşanıldı!`);
   };
 
-  const calculateSlotPrize = (result, bet) => {
-    if (result.every((symbol) => symbol === "👑")) {
-      return {
-        base: bet * 100,
-        label: "👑 KRAL JACKPOT!",
-        jackpot: true,
-      };
+  // Profil adını değiştir
+  const saveProfileName = () => {
+    const name = profileNameInput.trim();
+
+    if (name.length < 2 || name.length > 20) {
+      notify("⚠️ Kullanıcı adı 2-20 karakter arasında olmalı!");
+      return;
     }
 
-    if (result.every((symbol) => symbol === "7️⃣")) {
-      return {
-        base: bet * 50,
-        label: "🎰 777 JACKPOT!",
-        jackpot: true,
-      };
+    setData((previous) => ({
+      ...previous,
+      profileName: name,
+    }));
+
+    setProfileNameInput("");
+    notify("✅ Profil adı güncellendi!");
+  };
+
+  // Profil fotoğrafını değiştir
+  const handleProfileImage = (event) => {
+    const file = event.target.files?.[0];
+
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      notify("⚠️ Lütfen bir resim dosyası seç!");
+      return;
     }
 
-    if (result.every((symbol) => symbol === result[0])) {
-      return {
-        base: bet * 10,
-        label: "💎 ÜÇ AYNI!",
-        jackpot: false,
-      };
+    if (file.size > 700 * 1024) {
+      notify("⚠️ Fotoğraf en fazla 700 KB olmalı!");
+      event.target.value = "";
+      return;
     }
 
-    if (
-      result[0] === result[1] ||
-      result[1] === result[2] ||
-      result[0] === result[2]
-    ) {
-      return {
-        base: bet * 2,
-        label: "✨ İKİ AYNI!",
-        jackpot: false,
-      };
-    }
+    const reader = new FileReader();
 
-    return {
-      base: 0,
-      label: "🍀 Bu sefer olmadı. Tekrar dene!",
-      jackpot: false,
+    reader.onload = () => {
+      setData((previous) => ({
+        ...previous,
+        profileImage: reader.result,
+      }));
+
+      notify("✅ Profil fotoğrafı güncellendi!");
     };
+
+    reader.onerror = () => {
+      notify("❌ Fotoğraf okunamadı!");
+    };
+
+    reader.readAsDataURL(file);
   };
 
-  // Slot turu.
-  const playSlot = () => {
-    if (slotSpinning) return;
+  // Başarı rozetlerini kontrol et
+  const unlockedAchievements = ACHIEVEMENTS.filter((achievement) => {
+    switch (achievement.id) {
+      case "lucky":
+        return data.jackpotWins >= 1;
 
-    if (!Number.isSafeInteger(slotBet) || slotBet < 100) {
-      notify("Geçerli bir bahis seç.");
-      setAutoSpin(false);
-      return;
+      case "generous":
+        return data.giftedCoins >= 2000000;
+
+      case "rich":
+        return data.totalEarned >= 10000000;
+
+      case "jackpot":
+        return data.jackpotWins >= 5;
+
+      case "legend":
+        return data.gamesPlayed >= 100;
+
+      case "vip":
+        return data.vip >= 1;
+
+      default:
+        return false;
     }
+  });
 
-    if (coins < slotBet) {
-      notify("Yeterli coin yok!");
-      setAutoSpin(false);
-      return;
-    }
-
-    setData((current) => ({
-      ...current,
-      coins: current.coins - slotBet,
+  // Slot geçmişini temizle
+  const clearSlotHistory = () => {
+    setData((previous) => ({
+      ...previous,
+      slotHistory: [],
     }));
 
-    setSlotSpinning(true);
-    setSlotMessage("");
-    setSlotEffect(false);
-    playSound("spin");
-
-    const duration = fastSpin ? 350 : 1200;
-
-    setTimeout(() => {
-      const result = Array.from(
-        { length: 3 },
-        () => SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)]
-      );
-
-      const prize = calculateSlotPrize(result, slotBet);
-      const multiplier = vip >= 2 ? 5 : vip === 1 ? 2 : 1;
-      const payout = Math.floor(prize.base * multiplier);
-
-      setSlotSymbols(result);
-
-      if (payout > 0) {
-        setData((current) => ({
-          ...current,
-          coins: current.coins + payout,
-          totalEarned: current.totalEarned + payout,
-          diamonds:
-            current.diamonds + (prize.jackpot ? 2 : 0),
-          xp: current.xp + 25,
-          level: Math.floor((current.xp + 25) / 1000) + 1,
-          jackpotWins:
-            current.jackpotWins + (prize.jackpot ? 1 : 0),
-          gamesPlayed: current.gamesPlayed + 1,
-        }));
-
-        setSlotEffect(true);
-        setSlotMessage(
-          `${prize.label} +${formatCoins(payout)} COIN` +
-            (multiplier > 1 ? ` · VIP ${multiplier}x` : "") +
-            (prize.jackpot ? " · +2 💎" : "")
-        );
-
-        playSound(prize.jackpot ? "jackpot" : "win");
-      } else {
-        setData((current) => ({
-          ...current,
-          xp: current.xp + 25,
-          level: Math.floor((current.xp + 25) / 1000) + 1,
-          gamesPlayed: current.gamesPlayed + 1,
-        }));
-
-        setSlotMessage(prize.label);
-        playSound("lose");
-      }
-
-      const historyItem = {
-        id: `${Date.now()}-${Math.random()}`,
-        symbols: result,
-        bet: slotBet,
-        payout,
-        label: prize.label,
-        time: new Date().toLocaleTimeString("tr-TR", {
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
-      };
-
-      setSlotHistory((current) =>
-        [historyItem, ...current].slice(0, 10)
-      );
-
-      setSlotSpinning(false);
-
-      if (autoSpin) {
-        setAutoRemaining((current) => Math.max(0, current - 1));
-      }
-    }, duration);
+    notify("🧹 Oyun geçmişi temizlendi.");
   };
+  const statPillStyle = {
+  background: "#242438",
+  border: "1px solid #45455c",
+  color: "#f5c542",
+  borderRadius: 10,
+  padding: "9px 12px",
+  fontWeight: 800,
+  fontSize: 13,
+};
+    // Menü seçenekleri
+  const menuItems = [
+    { id: "home", label: "Ana Sayfa", icon: "🏠" },
+    { id: "slot", label: "Slot", icon: "🎰" },
+    { id: "profile", label: "Profil", icon: "👤" },
+    { id: "diamonds", label: "Elmas", icon: "💎" },
+    { id: "daily", label: "Günlük Ödül", icon: "🎁" },
+    { id: "gift", label: "Hediye", icon: "🎉" },
+    { id: "vip", label: "VIP Market", icon: "👑" },
+    { id: "badges", label: "Rozetler", icon: "🏆" },
+    { id: "history", label: "Oyun Geçmişi", icon: "📜" },
+    { id: "login", label: "Giriş / Kayıt", icon: "🔐" },
+  ];
 
-  // Otomatik çevirme.
-  useEffect(() => {
-    if (!autoSpin || slotSpinning || autoRemaining <= 0) {
-      if (autoSpin && autoRemaining <= 0) {
-        setAutoSpin(false);
-      }
-
-      return;
-    }
-
-    if (coins < slotBet) {
-      setAutoSpin(false);
-      setAutoRemaining(0);
-      setNotice("Otomatik oyun durdu: yeterli coin kalmadı.");
-      return;
-    }
-
-    const timer = setTimeout(() => {
-      playSlot();
-    }, 300);
-
-    return () => clearTimeout(timer);
-  }, [autoSpin, slotSpinning, autoRemaining]);
-
-  const startAutoSpin = () => {
-    if (slotSpinning || autoSpin) return;
-
-    if (coins < slotBet) {
-      notify("Yeterli coin yok!");
-      return;
-    }
-
-    setAutoRemaining(autoSpinCount);
-    setAutoSpin(true);
-    setSlotMessage("");
-    notify(`${autoSpinCount} turluk otomatik oyun başladı.`);
-  };
-
-  const stopAutoSpin = () => {
-    setAutoSpin(false);
-    setAutoRemaining(0);
-    notify("Otomatik oyun durduruldu.");
-  };
-
-  const activeVip = VIP_LEVELS.find(
-    (item) => item.id === vip
-  );
-
-  const achievements = {
-    lucky: data.jackpotWins > 0,
-    generous: data.giftedCoins >= 2000000,
-    rich: data.totalEarned >= 10000000,
-    jackpot: data.jackpotWins >= 5,
-    legend: data.gamesPlayed >= 100,
-    vip: vip >= 1,
-  };
-
-  const activeFrame = FRAMES.find(
+  const activeFrameData = FRAMES.find(
     (frame) => frame.id === data.activeFrame
   );
 
-  const avatarStyle = {
-    width: 105,
-    height: 105,
-    borderRadius: "50%",
-    objectFit: "cover",
-    border: `4px solid ${activeFrame?.color || "#f5c542"}`,
-    boxShadow: `0 0 18px ${activeFrame?.color || "#f5c542"}55`,
-    background: "#222233",
+  const cardStyle = {
+    background: "linear-gradient(145deg, #1b1b2b, #11111c)",
+    border: "1px solid #35354c",
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: 12,
   };
 
-  return (
-    <main
+  const smallButtonStyle = {
+    ...buttonStyle,
+    padding: "9px 12px",
+    fontSize: 13,
+  };
+
+  // Başlık ve üst bilgi paneli
+  const renderHeader = () => (
+    <header
       style={{
-        minHeight: "100vh",
-        background:
-          "radial-gradient(ellipse at top, #24203a 0%, #09090f 55%)",
-        color: "white",
-        fontFamily: "Arial, sans-serif",
-        padding: "20px 12px",
         textAlign: "center",
-        boxSizing: "border-box",
+        padding: "22px 12px",
+        borderBottom: "1px solid #343449",
+        background:
+          "linear-gradient(135deg, #191927 0%, #29203b 50%, #11111c 100%)",
+        borderRadius: "0 0 20px 20px",
       }}
     >
-      <style>{`
-        @keyframes royalGlow {
-          0%, 100% { box-shadow: 0 0 12px #f5c54233; }
-          50% { box-shadow: 0 0 28px #f5c54299; }
-        }
-        @keyframes royalWin {
-          0% { transform: scale(1); }
-          50% { transform: scale(1.07); }
-          100% { transform: scale(1); }
-        }
-        .royal-slot-symbol { animation: royalGlow 1.5s infinite; }
-        .royal-slot-win { animation: royalWin 0.6s ease-in-out 2; }
-        .royal-control { min-height: 44px; }
-        button:disabled { opacity: .45; cursor: not-allowed; }
-        @media (prefers-reduced-motion: reduce) {
-          .royal-slot-symbol, .royal-slot-win { animation: none; }
-        }
-      `}</style>
+      <div style={{ fontSize: 13, color: "#b9a6ff", letterSpacing: 4 }}>
+        ROYAL GAMING EXPERIENCE
+      </div>
 
       <h1
         style={{
-          color: "#f5c542",
-          fontSize: "clamp(32px, 7vw, 48px)",
-          textShadow: "0 0 22px #f5c54255",
-          marginBottom: 5,
+          margin: "10px 0",
+          fontSize: "clamp(28px, 7vw, 46px)",
+          fontWeight: 900,
+          letterSpacing: 2,
+          background: "linear-gradient(90deg, #fff1a8, #f5c542, #e99b2e)",
+          WebkitBackgroundClip: "text",
+          WebkitTextFillColor: "transparent",
         }}
       >
         👑 ROYAL SPIN
       </h1>
 
-      <p style={{ color: "#c9c6d8" }}>
-        Oyunun patronu sensin!
+      <p style={{ color: "#b7b7ca", margin: 0 }}>
+        Şansını dene, seviyeni yükselt!
       </p>
 
-      {/* HIZLI DURUM PANELİ */}
-      <section style={panelStyle}>
-        <div style={{ color: "#aaa", fontSize: 13 }}>
-          COIN BAKİYEN
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "center",
+          flexWrap: "wrap",
+          gap: 8,
+          marginTop: 20,
+        }}
+      >
+        <div style={statPillStyle}>
+          💰 {formatCoins(data.coins)}
         </div>
 
+        <div style={statPillStyle}>
+          💎 {formatCoins(data.diamonds)}
+        </div>
+
+        <div style={statPillStyle}>
+          ⭐ Seviye {data.level}
+        </div>
+
+        <div style={statPillStyle}>
+          👑 {data.vip === 2 ? "SVIP 2" : data.vip === 1 ? "SVIP 1" : "Standart"}
+        </div>
+      </div>
+
+      <div
+        style={{
+          margin: "18px auto 0",
+          maxWidth: 400,
+          textAlign: "left",
+        }}
+      >
         <div
           style={{
-            color: "#f5c542",
-            fontSize: 30,
-            fontWeight: "bold",
-            margin: "6px 0",
+            display: "flex",
+            justifyContent: "space-between",
+            color: "#c7c7d8",
+            fontSize: 12,
+            marginBottom: 6,
           }}
         >
-          🪙 {formatCoins(coins)}
-        </div>
-
-        <div style={{ color: "#7dd3fc", fontWeight: "bold" }}>
-          💎 {formatCoins(diamonds)} Elmas
-        </div>
-
-        <div style={{ marginTop: 12, color: "#ddd" }}>
-          ⭐ Seviye {level} · {xp} XP
+          <span>XP İlerlemesi</span>
+          <span>{data.xp % 1000}/1000 XP</span>
         </div>
 
         <div
           style={{
             height: 9,
-            background: "#303047",
-            borderRadius: 10,
+            borderRadius: 20,
+            background: "#343448",
             overflow: "hidden",
-            marginTop: 8,
           }}
         >
           <div
             style={{
               height: "100%",
-              width: `${xpPercent}%`,
-              background: "linear-gradient(90deg, #38bdf8, #a78bfa)",
-              transition: "width .3s",
+              width: `${data.xp % 1000 / 10}%`,
+              background: "linear-gradient(90deg, #9b5cff, #f5c542)",
+              transition: "width 0.3s ease",
             }}
           />
         </div>
+      </div>
+    </header>
+  );
 
-        <div style={{ fontSize: 12, color: "#aaa", marginTop: 5 }}>
-          Sonraki seviyeye {1000 - xpInLevel} XP
-        </div>
+  // Menü
+  const renderNavigation = () => (
+    <nav
+      style={{
+        display: "flex",
+        flexWrap: "wrap",
+        justifyContent: "center",
+        gap: 8,
+        padding: "16px 4px",
+      }}
+    >
+      {menuItems.map((item) => (
+        <button
+          key={item.id}
+          onClick={() => setPage(item.id)}
+          style={{
+            background:
+              page === item.id
+                ? "linear-gradient(135deg, #f5c542, #e69b16)"
+                : "#202033",
+            color: page === item.id ? "#111" : "#eee",
+            border:
+              page === item.id
+                ? "1px solid #ffe08a"
+                : "1px solid #38384f",
+            borderRadius: 10,
+            padding: "10px 12px",
+            cursor: "pointer",
+            fontWeight: 700,
+            fontSize: 12,
+          }}
+        >
+          {item.icon} {item.label}
+        </button>
+      ))}
+    </nav>
+  );
 
-        <div style={{ marginTop: 10, color: "#c9c6d8" }}>
-          {activeVip ? `👑 ${activeVip.name}` : "Standart Üye"}
-        </div>
-      </section>
-
-      {/* MENÜ */}
-      <nav
+  // Profil resmi ve kullanıcı bilgisi
+  const renderMiniProfile = () => (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 12,
+        margin: "8px auto",
+        padding: 12,
+        maxWidth: 500,
+        background: "#181827",
+        border: "1px solid #303047",
+        borderRadius: 14,
+      }}
+    >
+      <div
         style={{
+          width: 54,
+          height: 54,
+          borderRadius: "50%",
+          border: `3px solid ${activeFrameData?.color || "#f5c542"}`,
+          overflow: "hidden",
+          background: "#29293c",
           display: "flex",
+          alignItems: "center",
           justifyContent: "center",
-          gap: 8,
-          flexWrap: "wrap",
-          maxWidth: 900,
-          margin: "22px auto",
+          fontSize: 28,
+          flexShrink: 0,
+        }}
+      >
+        {data.profileImage ? (
+          <img
+            src={data.profileImage}
+            alt="Profil"
+            style={{
+              width: "100%",
+              height: "100%",
+              objectFit: "cover",
+            }}
+          />
+        ) : (
+          "👤"
+        )}
+      </div>
+
+      <div style={{ textAlign: "left", minWidth: 0 }}>
+        <div
+          style={{
+            color: activeFrameData?.color || "#f5c542",
+            fontWeight: 800,
+            overflowWrap: "anywhere",
+          }}
+        >
+          {data.profileName}
+        </div>
+
+        <div style={{ color: "#a9a9bd", fontSize: 12 }}>
+          Seviye {data.level} · {data.vip ? `SVIP ${data.vip}` : "Standart Üye"}
+        </div>
+
+        {user && (
+          <div
+            style={{
+              color: "#9fdfb1",
+              fontSize: 11,
+              overflowWrap: "anywhere",
+            }}
+          >
+            {user.email}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  // Ana sayfa
+  const renderHome = () => (
+    <section style={panelStyle}>
+      <div
+        style={{
+          textAlign: "center",
+          padding: "18px 8px",
+        }}
+      >
+        <div style={{ fontSize: 58 }}>🎰</div>
+
+        <h2 style={{ color: "#f5c542", fontSize: 27 }}>
+          Oyunun Patronu Sensin!
+        </h2>
+
+        <p style={{ color: "#c4c4d6", lineHeight: 1.7 }}>
+          Royal Spin dünyasına hoş geldin. Slot oyna, XP kazan,
+          seviyeni yükselt ve profilini kişiselleştir.
+        </p>
+
+        <button
+          style={{
+            ...buttonStyle,
+            fontSize: 16,
+            padding: "14px 24px",
+            marginTop: 8,
+          }}
+          onClick={() => setPage("slot")}
+        >
+          🎰 SLOTA GİT
+        </button>
+      </div>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))",
+          gap: 10,
+          marginTop: 12,
         }}
       >
         {[
-          ["home", "🏠 Ana Sayfa"],
-          ["slot", "🎰 Slot"],
-          ["profile", "👤 Profil"],
-          ["diamonds", "💎 Elmas"],
-          ["daily", "🎁 Günlük Ödül"],
-          ["gift", "🎁 Hediye"],
-          ["vip", "👑 VIP"],
-          ["badges", "🏆 Rozetler"],
-          ["rooms", "🎙️ Odalar"],
-          ["login", "🔑 Giriş"],
-        ].map(([id, label]) => (
-          <button
-            key={id}
-            className="royal-control"
-            onClick={() => {
-              setPage(id);
-              setNotice("");
-            }}
+          ["🎮", "Oynanan Oyun", data.gamesPlayed],
+          ["🏆", "Jackpot", data.jackpotWins],
+          ["💰", "Toplam Kazanç", formatCoins(data.totalEarned)],
+          ["🎁", "Hediye Edilen", formatCoins(data.giftedCoins)],
+        ].map(([icon, title, value]) => (
+          <div
+            key={title}
             style={{
-              ...buttonStyle,
-              background: page === id ? "#f5c542" : "#222233",
-              color: page === id ? "#111" : "white",
-              border: "1px solid #45455a",
+              ...cardStyle,
+              marginBottom: 0,
+              textAlign: "center",
             }}
           >
-            {label}
-          </button>
+            <div style={{ fontSize: 25 }}>{icon}</div>
+            <div style={{ color: "#a9a9bd", fontSize: 12 }}>{title}</div>
+            <div style={{ color: "#f5c542", fontSize: 19, fontWeight: 800 }}>
+              {value}
+            </div>
+          </div>
         ))}
-      </nav>
+      </div>
+
+      <div style={{ ...cardStyle, marginTop: 16 }}>
+        <h3 style={{ color: "#f5c542", marginTop: 0 }}>
+          ⚡ Hızlı Erişim
+        </h3>
+
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+          <button style={smallButtonStyle} onClick={() => setPage("slot")}>
+            🎰 Slot Oyna
+          </button>
+
+          <button style={smallButtonStyle} onClick={() => setPage("daily")}>
+            🎁 Günlük Ödül
+          </button>
+
+          <button style={smallButtonStyle} onClick={() => setPage("profile")}>
+            👤 Profilim
+          </button>
+
+          <button style={smallButtonStyle} onClick={() => setPage("vip")}>
+            👑 VIP Market
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+  // Slot oyun ekranı
+  const renderSlot = () => (
+    <section style={panelStyle}>
+      <div style={{ textAlign: "center" }}>
+        <div style={{ fontSize: 15, color: "#b7a6ff", letterSpacing: 3 }}>
+          ROYAL CASINO
+        </div>
+
+        <h2
+          style={{
+            color: "#f5c542",
+            fontSize: 30,
+            margin: "10px 0",
+          }}
+        >
+          🎰 ROYAL SLOT
+        </h2>
+
+        <p style={{ color: "#bdbdd0" }}>
+          Üç sembolü eşleştir, oyun içi coin kazan!
+        </p>
+      </div>
+
+      {/* Bakiye */}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "center",
+          flexWrap: "wrap",
+          gap: 10,
+          margin: "20px 0",
+        }}
+      >
+        <div style={statPillStyle}>
+          💰 Bakiye: {formatCoins(data.coins)}
+        </div>
+
+        <div style={statPillStyle}>
+          💎 Elmas: {formatCoins(data.diamonds)}
+        </div>
+
+        <div style={statPillStyle}>
+          ⭐ Seviye: {data.level}
+        </div>
+      </div>
+
+      {/* Slot makaraları */}
+      <div
+        style={{
+          background:
+            "linear-gradient(145deg, #29213c, #11111c)",
+          border: "2px solid #d9a927",
+          borderRadius: 20,
+          padding: "22px 10px",
+          boxShadow: slotEffect
+            ? "0 0 28px rgba(245,197,66,0.6)"
+            : "0 0 12px rgba(245,197,66,0.12)",
+          transition: "box-shadow 0.3s ease",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "center",
+            gap: "clamp(5px, 3vw, 14px)",
+          }}
+        >
+          {slotSymbols.map((symbol, index) => (
+            <div
+              key={index}
+              style={{
+                width: "clamp(75px, 22vw, 125px)",
+                height: "clamp(85px, 24vw, 135px)",
+                display: "flex",
+                justifyContent: "center",
+                alignItems: "center",
+                background: "linear-gradient(180deg, #fff7df, #e8d8ad)",
+                border: "3px solid #c69a35",
+                borderRadius: 14,
+                fontSize: "clamp(35px, 10vw, 60px)",
+                boxShadow: "inset 0 0 12px rgba(0,0,0,0.15)",
+                transform: slotSpinning
+                  ? "translateY(2px)"
+                  : "translateY(0)",
+                transition: "transform 0.15s ease",
+              }}
+            >
+              {slotSpinning
+                ? SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)]
+                : symbol}
+            </div>
+          ))}
+        </div>
+
+        <div
+          style={{
+            textAlign: "center",
+            color: "#f5c542",
+            marginTop: 18,
+            fontSize: 13,
+          }}
+        >
+          {slotSpinning ? "🎰 MAKARALAR DÖNÜYOR..." : "✨ ŞANSINI DENE ✨"}
+        </div>
+      </div>
+
+      {/* Bahis seçimi */}
+      <div style={{ ...cardStyle, marginTop: 20 }}>
+        <h3 style={{ color: "#f5c542", marginTop: 0 }}>
+          💰 Bahis Miktarı
+        </h3>
+
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "center",
+            flexWrap: "wrap",
+            gap: 8,
+          }}
+        >
+          {[100, 500, 1000, 5000, 10000].map((amount) => (
+            <button
+              key={amount}
+              onClick={() => changeBet(amount)}
+              style={{
+                ...smallButtonStyle,
+                background:
+                  slotBet === amount
+                    ? "linear-gradient(135deg, #f5c542, #e69b16)"
+                    : "#29293d",
+                color: slotBet === amount ? "#111" : "#fff",
+                border:
+                  slotBet === amount
+                    ? "1px solid #ffe08a"
+                    : "1px solid #45455c",
+              }}
+              disabled={slotSpinning}
+            >
+              {formatCoins(amount)}
+            </button>
+          ))}
+        </div>
+
+        <label
+          style={{
+            display: "block",
+            color: "#c7c7d8",
+            marginTop: 16,
+            fontSize: 13,
+          }}
+        >
+          Özel bahis miktarı
+        </label>
+
+        <input
+          type="number"
+          min="100"
+          max="1000000"
+          step="100"
+          value={customBet}
+          onChange={(event) => setCustomBet(event.target.value)}
+          style={inputStyle}
+          disabled={slotSpinning}
+        />
+
+        <button
+          style={{
+            ...buttonStyle,
+            width: "100%",
+            marginTop: 8,
+            opacity: slotSpinning ? 0.6 : 1,
+          }}
+          disabled={slotSpinning}
+          onClick={() => {
+            const amount = Number(customBet);
+
+            if (
+              !Number.isFinite(amount) ||
+              amount < 100 ||
+              amount > 1000000
+            ) {
+              setSlotMessage("⚠️ Bahis 100 ile 1.000.000 arasında olmalı!");
+              return;
+            }
+
+            changeBet(amount);
+          }}
+        >
+          ✅ Bahsi Uygula
+        </button>
+
+        <p
+          style={{
+            textAlign: "center",
+            color: "#a9a9bd",
+            fontSize: 12,
+          }}
+        >
+          Seçili bahis: {formatCoins(slotBet)} coin
+        </p>
+      </div>
+
+      {/* Oyun kontrolleri */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))",
+          gap: 10,
+          marginTop: 18,
+        }}
+      >
+        <button
+          onClick={playSlot}
+          disabled={slotSpinning || autoSpin}
+          style={{
+            ...buttonStyle,
+            padding: 16,
+            fontSize: 16,
+            opacity: slotSpinning || autoSpin ? 0.5 : 1,
+          }}
+        >
+          {slotSpinning ? "⏳ DÖNÜYOR..." : "🎰 ÇEVİR"}
+        </button>
+
+        <button
+          onClick={() => setFastSpin((previous) => !previous)}
+          style={{
+            ...buttonStyle,
+            background: fastSpin ? "#8b5cf6" : "#29293d",
+            color: "#fff",
+            border: "1px solid #555",
+          }}
+        >
+          ⚡ Hızlı: {fastSpin ? "AÇIK" : "KAPALI"}
+        </button>
+
+        <button
+          onClick={() => setSoundEnabled((previous) => !previous)}
+          style={{
+            ...buttonStyle,
+            background: soundEnabled ? "#16845b" : "#29293d",
+            color: "#fff",
+            border: "1px solid #555",
+          }}
+        >
+          {soundEnabled ? "🔊 Ses Açık" : "🔇 Ses Kapalı"}
+        </button>
+      </div>
+
+      {/* Otomatik çevirme */}
+      <div style={{ ...cardStyle, marginTop: 18 }}>
+        <h3 style={{ color: "#f5c542", marginTop: 0 }}>
+          🔄 Otomatik Çevirme
+        </h3>
+
+        <p style={{ color: "#bdbdd0", fontSize: 13 }}>
+          Kaç kez otomatik çevirmek istediğini seç.
+        </p>
+
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "center",
+            flexWrap: "wrap",
+            gap: 8,
+          }}
+        >
+          {[10, 25, 50].map((count) => (
+            <button
+              key={count}
+              onClick={() => setAutoSpinCount(count)}
+              style={{
+                ...smallButtonStyle,
+                background:
+                  autoSpinCount === count ? "#f5c542" : "#29293d",
+                color: autoSpinCount === count ? "#111" : "#fff",
+              }}
+              disabled={autoSpin || slotSpinning}
+            >
+              {count} Oyun
+            </button>
+          ))}
+        </div>
+
+        {!autoSpin ? (
+          <button
+            onClick={startAutoSpin}
+            disabled={slotSpinning}
+            style={{
+              ...buttonStyle,
+              width: "100%",
+              marginTop: 14,
+              opacity: slotSpinning ? 0.5 : 1,
+            }}
+          >
+            🔄 Otomatik Oyunu Başlat
+          </button>
+        ) : (
+          <button
+            onClick={stopAutoSpin}
+            style={{
+              ...buttonStyle,
+              width: "100%",
+              marginTop: 14,
+              background: "#d94848",
+              color: "#fff",
+            }}
+          >
+            ⏹️ Durdur · Kalan: {autoRemaining}
+          </button>
+        )}
+      </div>
+
+      {/* Sonuç mesajı */}
+      {slotMessage && (
+        <div
+          role="status"
+          style={{
+            background: "#252238",
+            border: "1px solid #69558f",
+            color: "#ffe9a6",
+            borderRadius: 12,
+            padding: 16,
+            marginTop: 18,
+            textAlign: "center",
+            fontWeight: 700,
+            overflowWrap: "anywhere",
+          }}
+        >
+          {slotMessage}
+        </div>
+      )}
+
+      {/* Kazanç tablosu */}
+      <div style={{ ...cardStyle, marginTop: 20 }}>
+        <h3 style={{ color: "#f5c542", marginTop: 0 }}>
+          🏆 Ödül Tablosu
+        </h3>
+
+        {[
+          ["👑 👑 👑", "Kraliyet Jackpot", "100x bahis"],
+          ["7️⃣ 7️⃣ 7️⃣", "Jackpot", "50x bahis"],
+          ["Üç aynı sembol", "Üçlü eşleşme", "10x bahis"],
+          ["İki aynı sembol", "İkili eşleşme", "2x bahis"],
+        ].map(([symbols, title, reward]) => (
+          <div
+            key={title}
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: 8,
+              padding: "12px 0",
+              borderBottom: "1px solid #343449",
+              fontSize: 13,
+            }}
+          >
+            <span>{symbols}</span>
+            <span style={{ color: "#d5d5e6" }}>{title}</span>
+            <strong style={{ color: "#f5c542" }}>{reward}</strong>
+          </div>
+        ))}
+
+        <p style={{ color: "#9999af", fontSize: 11, lineHeight: 1.6 }}>
+          Bu tablo oyun içi sanal coin ödüllerini gösterir.
+          Coinler gerçek para değildir ve nakde çevrilemez.
+        </p>
+      </div>
+
+      {/* Son oyunlar */}
+      <div style={{ ...cardStyle, marginTop: 18 }}>
+        <h3 style={{ color: "#f5c542", marginTop: 0 }}>
+          📜 Son Oyunlar
+        </h3>
+
+        {data.slotHistory.length === 0 ? (
+          <p style={{ color: "#a9a9bd", textAlign: "center" }}>
+            Henüz oyun geçmişin yok. İlk slot oyununu oyna!
+          </p>
+        ) : (
+          data.slotHistory.slice(0, 5).map((item, index) => (
+            <div
+              key={`${item.date}-${index}`}
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                gap: 8,
+                padding: "10px 0",
+                borderBottom: "1px solid #303047",
+                fontSize: 13,
+              }}
+            >
+              <span>{item.symbols.join(" ")}</span>
+
+              <span style={{ color: "#a9a9bd" }}>
+                Bahis: {formatCoins(item.bet)}
+              </span>
+
+              <strong
+                style={{
+                  color: item.payout > 0 ? "#65e6a1" : "#ff8585",
+                }}
+              >
+                {item.payout > 0
+                  ? `+${formatCoins(item.payout)}`
+                  : "Kazanç yok"}
+              </strong>
+            </div>
+          ))
+        )}
+
+        {data.slotHistory.length > 0 && (
+          <button
+            onClick={clearSlotHistory}
+            style={{
+              ...smallButtonStyle,
+              marginTop: 12,
+              background: "#29293d",
+              color: "#fff",
+            }}
+          >
+            🧹 Geçmişi Temizle
+          </button>
+        )}
+      </div>
+    </section>
+  );
+  // Profil ekranı
+  const renderProfile = () => (
+    <section style={panelStyle}>
+      <h2 style={{ color: "#f5c542", textAlign: "center" }}>
+        👤 PROFİLİM
+      </h2>
+
+      {renderMiniProfile()}
+
+      <div style={cardStyle}>
+        <h3 style={{ color: "#f5c542" }}>📸 Profil Fotoğrafı</h3>
+
+        <p style={{ color: "#aaaabc", fontSize: 13 }}>
+          JPG, PNG veya başka bir resim formatı seçebilirsin.
+          Dosya boyutu en fazla 700 KB olmalıdır.
+        </p>
+
+        <input
+          type="file"
+          accept="image/*"
+          onChange={handleProfileImage}
+          style={{
+            ...inputStyle,
+            padding: 8,
+          }}
+        />
+
+        {data.profileImage && (
+          <button
+            style={{
+              ...smallButtonStyle,
+              background: "#3a2630",
+              color: "#ffaaaa",
+            }}
+            onClick={() => {
+              setData((previous) => ({
+                ...previous,
+                profileImage: "",
+              }));
+              notify("Profil fotoğrafı kaldırıldı.");
+            }}
+          >
+            🗑️ Fotoğrafı Kaldır
+          </button>
+        )}
+      </div>
+
+      <div style={cardStyle}>
+        <h3 style={{ color: "#f5c542" }}>✏️ Kullanıcı Adı</h3>
+
+        <input
+          type="text"
+          maxLength={20}
+          value={profileNameInput}
+          onChange={(event) => setProfileNameInput(event.target.value)}
+          placeholder="Yeni kullanıcı adın"
+          style={inputStyle}
+        />
+
+        <button
+          onClick={saveProfileName}
+          style={{ ...buttonStyle, width: "100%" }}
+        >
+          ✅ İsmi Kaydet
+        </button>
+      </div>
+
+      <div style={cardStyle}>
+        <h3 style={{ color: "#f5c542" }}>📊 İstatistikler</h3>
+
+        {[
+          ["💰 Coin Bakiyesi", formatCoins(data.coins)],
+          ["💎 Elmas Bakiyesi", formatCoins(data.diamonds)],
+          ["⭐ XP", formatCoins(data.xp)],
+          ["🏅 Seviye", data.level],
+          ["🎮 Oynanan Oyun", data.gamesPlayed],
+          ["👑 Jackpot Sayısı", data.jackpotWins],
+          ["🎁 Hediye Edilen Coin", formatCoins(data.giftedCoins)],
+          ["🏆 Açılan Rozet", unlockedAchievements.length],
+        ].map(([label, value]) => (
+          <div
+            key={label}
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              gap: 10,
+              padding: "12px 0",
+              borderBottom: "1px solid #303047",
+              color: "#ddd",
+            }}
+          >
+            <span>{label}</span>
+            <strong style={{ color: "#f5c542" }}>{value}</strong>
+          </div>
+        ))}
+      </div>
+
+      <div style={cardStyle}>
+        <h3 style={{ color: "#f5c542" }}>🔐 Hesap Durumu</h3>
+
+        {user ? (
+          <>
+            <p style={{ color: "#9fdfb1", overflowWrap: "anywhere" }}>
+              ✅ Giriş yapıldı: {user.email}
+            </p>
+
+            <button
+              onClick={handleLogout}
+              style={{
+                ...buttonStyle,
+                background: "#b93838",
+                color: "#fff",
+              }}
+            >
+              🚪 Çıkış Yap
+            </button>
+          </>
+        ) : (
+          <>
+            <p style={{ color: "#aaaabc" }}>
+              Henüz bir Supabase hesabıyla giriş yapmadın.
+            </p>
+
+            <button
+              style={buttonStyle}
+              onClick={() => setPage("login")}
+            >
+              🔐 Giriş / Kayıt
+            </button>
+          </>
+        )}
+      </div>
+    </section>
+  );
+
+  // Elmas mağazası
+  const renderDiamonds = () => (
+    <section style={panelStyle}>
+      <h2 style={{ color: "#62d5ff", textAlign: "center" }}>
+        💎 ELMAS MAĞAZASI
+      </h2>
+
+      <div style={{ ...cardStyle, textAlign: "center" }}>
+        <div style={{ fontSize: 48 }}>💎</div>
+
+        <h3 style={{ color: "#62d5ff" }}>
+          Elmas Bakiyen
+        </h3>
+
+        <div style={{ fontSize: 28, fontWeight: 900, color: "#fff" }}>
+          {formatCoins(data.diamonds)}
+        </div>
+
+        <p style={{ color: "#aaaabc", fontSize: 13 }}>
+          Elmaslarını profil çerçevelerini açmak için kullanabilirsin.
+        </p>
+      </div>
+
+      <h3 style={{ color: "#f5c542" }}>🖼️ Profil Çerçeveleri</h3>
+
+      {FRAMES.map((frame) => {
+        const owned = data.ownedFrames.includes(frame.id);
+        const active = data.activeFrame === frame.id;
+
+        return (
+          <div
+            key={frame.id}
+            style={{
+              ...cardStyle,
+              border: `1px solid ${frame.color}`,
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 14,
+              }}
+            >
+              <div
+                style={{
+                  width: 62,
+                  height: 62,
+                  flexShrink: 0,
+                  borderRadius: "50%",
+                  border: `4px solid ${frame.color}`,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: 28,
+                }}
+              >
+                {frame.icon}
+              </div>
+
+              <div style={{ flex: 1 }}>
+                <h4 style={{ margin: "0 0 6px", color: frame.color }}>
+                  {frame.name}
+                </h4>
+
+                <p style={{ margin: 0, color: "#aaaabc", fontSize: 13 }}>
+                  {frame.price} elmas
+                </p>
+              </div>
+            </div>
+
+            <button
+              style={{
+                ...buttonStyle,
+                width: "100%",
+                marginTop: 14,
+                background: active ? "#27875a" : undefined,
+                color: active ? "#fff" : "#111",
+              }}
+              onClick={() => buyFrame(frame)}
+            >
+              {active
+                ? "✅ Kullanılıyor"
+                : owned
+                  ? "🖼️ Çerçeveyi Kuşan"
+                  : "💎 Satın Al"}
+            </button>
+          </div>
+        );
+      })}
+    </section>
+  );
+
+  // Günlük ödül ekranı
+  const renderDaily = () => {
+    const claimedToday = data.dailyClaimDate === dateKey();
+
+    const nextStreak =
+      data.dailyClaimDate === yesterdayKey()
+        ? data.dailyStreak + 1
+        : 1;
+
+    const nextReward = Math.min(
+      500 + (nextStreak - 1) * 100,
+      2000
+    );
+
+    return (
+      <section style={panelStyle}>
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontSize: 60 }}>🎁</div>
+
+          <h2 style={{ color: "#f5c542" }}>
+            GÜNLÜK ÖDÜL
+          </h2>
+
+          <p style={{ color: "#aaaabc" }}>
+            Her gün giriş yap, sanal coin ödülünü al!
+          </p>
+        </div>
+
+        <div
+          style={{
+            ...cardStyle,
+            textAlign: "center",
+            border: "1px solid #b99532",
+          }}
+        >
+          <div style={{ fontSize: 42 }}>💰</div>
+
+          <h3 style={{ color: "#f5c542" }}>
+            {formatCoins(nextReward)} Coin
+          </h3>
+
+          <p style={{ color: "#aaaabc" }}>
+            Günlük seri: {nextStreak}. gün
+          </p>
+
+          <button
+            onClick={claimDailyReward}
+            disabled={claimedToday}
+            style={{
+              ...buttonStyle,
+              width: "100%",
+              opacity: claimedToday ? 0.5 : 1,
+            }}
+          >
+            {claimedToday
+              ? "✅ Bugünkü Ödül Alındı"
+              : "🎁 ÖDÜLÜMÜ AL"}
+          </button>
+        </div>
+
+        <div style={cardStyle}>
+          <h3 style={{ color: "#f5c542" }}>
+            📅 Günlük Ödül Bilgisi
+          </h3>
+
+          <p style={{ color: "#ccc", lineHeight: 1.8 }}>
+            🔹 İlk gün: 500 coin
+            <br />
+            🔹 Her ardışık günde: 100 coin ek ödül
+            <br />
+            🔹 Günlük maksimum ödül: 2.000 coin
+            <br />
+            🔹 Bir gün kaçırırsan seri yeniden başlar.
+          </p>
+        </div>
+      </section>
+    );
+  };
+
+  // Hediye ekranı
+  const renderGift = () => (
+    <section style={panelStyle}>
+      <div style={{ textAlign: "center" }}>
+        <div style={{ fontSize: 56 }}>🎁</div>
+
+        <h2 style={{ color: "#f5c542" }}>
+          HEDİYE MERKEZİ
+        </h2>
+
+        <p style={{ color: "#aaaabc" }}>
+          Oyun içi coin bakiyeni yönet.
+        </p>
+      </div>
+
+      <div style={cardStyle}>
+        <h3 style={{ color: "#f5c542" }}>💰 Coin Bakiyen</h3>
+
+        <div style={{ fontSize: 28, color: "#fff", fontWeight: 900 }}>
+          {formatCoins(data.coins)}
+        </div>
+      </div>
+
+      <div style={cardStyle}>
+        <h3 style={{ color: "#f5c542" }}>
+          🎉 Hediye Hazırla
+        </h3>
+
+        <label style={{ color: "#ccc", fontSize: 13 }}>
+          Alıcının oyuncu adı
+        </label>
+
+        <input
+          type="text"
+          value={giftRecipient}
+          onChange={(event) => setGiftRecipient(event.target.value)}
+          placeholder="Oyuncu adı"
+          style={inputStyle}
+        />
+
+        <label style={{ color: "#ccc", fontSize: 13 }}>
+          Hediye coin miktarı
+        </label>
+
+        <input
+          type="number"
+          min="1"
+          value={giftAmount}
+          onChange={(event) => setGiftAmount(event.target.value)}
+          style={inputStyle}
+        />
+
+        <button
+          onClick={sendGift}
+          style={{ ...buttonStyle, width: "100%" }}
+        >
+          🎁 Hediyeyi Hazırla
+        </button>
+
+        <p style={{ color: "#9999af", fontSize: 12, lineHeight: 1.6 }}>
+          Bu özellik şimdilik yalnızca kendi oyun bakiyende işlem yapar.
+          Gerçek bir başka oyuncunun hesabına coin aktarmaz.
+        </p>
+      </div>
+
+      <div style={cardStyle}>
+        <h3 style={{ color: "#f5c542" }}>
+          📊 Hediye İstatistiği
+        </h3>
+
+        <p style={{ color: "#ccc" }}>
+          Toplam hediye edilen:{" "}
+          <strong style={{ color: "#f5c542" }}>
+            {formatCoins(data.giftedCoins)} coin
+          </strong>
+        </p>
+      </div>
+    </section>
+  );
+  // VIP marketi
+  const renderVIP = () => (
+    <section style={panelStyle}>
+      <div style={{ textAlign: "center" }}>
+        <div style={{ fontSize: 58 }}>👑</div>
+
+        <h2 style={{ color: "#f5c542" }}>
+          ROYAL VIP MARKET
+        </h2>
+
+        <p style={{ color: "#aaaabc" }}>
+          Oyun içi coinlerinle VIP seviyeni yükselt.
+        </p>
+
+        <div style={statPillStyle}>
+          💰 Bakiyen: {formatCoins(data.coins)} coin
+        </div>
+      </div>
+
+      {VIP_LEVELS.map((item) => {
+        const owned = data.vip >= item.id;
+
+        return (
+          <div
+            key={item.id}
+            style={{
+              ...cardStyle,
+              border: `1px solid ${item.id === 2 ? "#c084fc" : "#f5c542"}`,
+              background:
+                item.id === 2
+                  ? "linear-gradient(145deg, #30203e, #171322)"
+                  : "linear-gradient(145deg, #302b1d, #17151b)",
+            }}
+          >
+            <div style={{ textAlign: "center" }}>
+              <div style={{ fontSize: 48 }}>
+                {item.id === 2 ? "💎" : "👑"}
+              </div>
+
+              <h3
+                style={{
+                  color: item.id === 2 ? "#d8a8ff" : "#f5c542",
+                  fontSize: 26,
+                  margin: "8px 0",
+                }}
+              >
+                {item.name}
+              </h3>
+
+              <div
+                style={{
+                  color: "#fff",
+                  fontSize: 22,
+                  fontWeight: 900,
+                }}
+              >
+                {formatCoins(item.price)} Coin
+              </div>
+            </div>
+
+            <div style={{ margin: "20px 0" }}>
+              {item.features.map((feature) => (
+                <div
+                  key={feature}
+                  style={{
+                    padding: "10px 0",
+                    color: "#ddd",
+                    borderBottom: "1px solid #393345",
+                  }}
+                >
+                  {feature}
+                </div>
+              ))}
+            </div>
+
+            <button
+              onClick={() => buyVIP(item.id)}
+              disabled={owned}
+              style={{
+                ...buttonStyle,
+                width: "100%",
+                background: owned
+                  ? "#26734d"
+                  : item.id === 2
+                    ? "linear-gradient(135deg, #d8a8ff, #9055cf)"
+                    : undefined,
+                color: owned || item.id === 2 ? "#fff" : "#111",
+                opacity: owned ? 0.8 : 1,
+              }}
+            >
+              {owned
+                ? "✅ SAHİPSİN"
+                : `👑 ${item.name} SATIN AL`}
+            </button>
+          </div>
+        );
+      })}
+
+      <p style={{ color: "#9999af", fontSize: 12, lineHeight: 1.7 }}>
+        VIP özellikleri bu sürümde oyun içi simülasyondur.
+        Satın alma işlemleri yalnızca sanal coin bakiyesini değiştirir.
+      </p>
+    </section>
+  );
+
+  // Başarı rozetleri
+  const renderBadges = () => (
+    <section style={panelStyle}>
+      <div style={{ textAlign: "center" }}>
+        <div style={{ fontSize: 58 }}>🏆</div>
+
+        <h2 style={{ color: "#f5c542" }}>
+          BAŞARI ROZETLERİ
+        </h2>
+
+        <p style={{ color: "#aaaabc" }}>
+          Oyna, ilerle ve başarılarını aç!
+        </p>
+
+        <div style={statPillStyle}>
+          Açılan rozet: {unlockedAchievements.length}/
+          {ACHIEVEMENTS.length}
+        </div>
+      </div>
+
+      <div
+        style={{
+          height: 10,
+          background: "#303047",
+          borderRadius: 20,
+          overflow: "hidden",
+          margin: "20px 0",
+        }}
+      >
+        <div
+          style={{
+            width: `${
+              (unlockedAchievements.length / ACHIEVEMENTS.length) * 100
+            }%`,
+            height: "100%",
+            background: "linear-gradient(90deg, #f5c542, #e68a22)",
+            transition: "width 0.3s ease",
+          }}
+        />
+      </div>
+
+      {ACHIEVEMENTS.map((achievement) => {
+        const unlocked = unlockedAchievements.some(
+          (item) => item.id === achievement.id
+        );
+
+        return (
+          <div
+            key={achievement.id}
+            style={{
+              ...cardStyle,
+              display: "flex",
+              alignItems: "center",
+              gap: 14,
+              border: unlocked
+                ? "1px solid #d9b43e"
+                : "1px solid #35354a",
+              opacity: unlocked ? 1 : 0.65,
+            }}
+          >
+            <div
+              style={{
+                fontSize: 36,
+                width: 54,
+                height: 54,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                background: "#252538",
+                borderRadius: 12,
+                flexShrink: 0,
+              }}
+            >
+              {unlocked ? achievement.icon : "🔒"}
+            </div>
+
+            <div style={{ flex: 1 }}>
+              <h3
+                style={{
+                  color: unlocked ? "#f5c542" : "#c1c1d0",
+                  margin: "0 0 6px",
+                }}
+              >
+                {achievement.name}
+              </h3>
+
+              <p
+                style={{
+                  color: "#aaaabc",
+                  fontSize: 13,
+                  margin: 0,
+                }}
+              >
+                {achievement.description}
+              </p>
+            </div>
+
+            <div
+              style={{
+                fontSize: 12,
+                color: unlocked ? "#7ee5a4" : "#9999af",
+              }}
+            >
+              {unlocked ? "AÇILDI" : "KİLİTLİ"}
+            </div>
+          </div>
+        );
+      })}
+    </section>
+  );
+
+  // Giriş, kayıt ve şifre yenileme ekranı
+  const renderLogin = () => (
+    <section style={panelStyle}>
+      <div style={{ textAlign: "center" }}>
+        <div style={{ fontSize: 58 }}>🔐</div>
+
+        <h2 style={{ color: "#f5c542" }}>
+          ROYAL SPIN HESABI
+        </h2>
+
+        <p style={{ color: "#aaaabc" }}>
+          Hesabına giriş yap veya yeni hesap oluştur.
+        </p>
+      </div>
+
+      {user ? (
+        <div style={{ ...cardStyle, textAlign: "center" }}>
+          <div style={{ fontSize: 42 }}>✅</div>
+
+          <h3 style={{ color: "#7ee5a4" }}>
+            Giriş Yapıldı
+          </h3>
+
+          <p
+            style={{
+              color: "#ccc",
+              overflowWrap: "anywhere",
+            }}
+          >
+            {user.email}
+          </p>
+
+          <button
+            onClick={handleLogout}
+            style={{
+              ...buttonStyle,
+              background: "#b93838",
+              color: "#fff",
+            }}
+          >
+            🚪 Çıkış Yap
+          </button>
+        </div>
+      ) : (
+        <div style={cardStyle}>
+          <label style={{ color: "#ddd", fontSize: 13 }}>
+            E-posta adresi
+          </label>
+
+          <input
+            type="email"
+            autoComplete="email"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            placeholder="ornek@email.com"
+            style={inputStyle}
+          />
+
+          {!recoveryMode && (
+            <>
+              <label style={{ color: "#ddd", fontSize: 13 }}>
+                Şifre
+              </label>
+
+              <input
+                type="password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                placeholder="En az 6 karakter"
+                style={inputStyle}
+              />
+            </>
+          )}
+
+          {recoveryMode ? (
+            <>
+              <button
+                onClick={handlePasswordRecovery}
+                disabled={authBusy}
+                style={{ ...buttonStyle, width: "100%", marginBottom: 10 }}
+              >
+                {authBusy
+                  ? "⏳ Gönderiliyor..."
+                  : "📩 Şifre Yenileme E-postası Gönder"}
+              </button>
+
+              <label style={{ color: "#ddd", fontSize: 13 }}>
+                Yeni şifre
+              </label>
+
+              <input
+                type="password"
+                autoComplete="new-password"
+                value={newPassword}
+                onChange={(event) => setNewPassword(event.target.value)}
+                placeholder="Yeni şifre"
+                style={inputStyle}
+              />
+
+              <button
+                onClick={handleNewPassword}
+                disabled={authBusy}
+                style={{ ...buttonStyle, width: "100%" }}
+              >
+                🔑 Yeni Şifreyi Kaydet
+              </button>
+
+              <button
+                onClick={() => setRecoveryMode(false)}
+                style={{
+                  ...buttonStyle,
+                  width: "100%",
+                  marginTop: 10,
+                  background: "#303047",
+                  color: "#fff",
+                }}
+              >
+                ↩️ Giriş Ekranına Dön
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                onClick={handleLogin}
+                disabled={authBusy}
+                style={{
+                  ...buttonStyle,
+                  width: "100%",
+                  marginBottom: 10,
+                }}
+              >
+                {authBusy ? "⏳ Bekle..." : "🔐 GİRİŞ YAP"}
+              </button>
+
+              <button
+                onClick={handleSignUp}
+                disabled={authBusy}
+                style={{
+                  ...buttonStyle,
+                  width: "100%",
+                  background: "linear-gradient(135deg, #8756d8, #6339a8)",
+                  color: "#fff",
+                  marginBottom: 10,
+                }}
+              >
+                {authBusy ? "⏳ Bekle..." : "✨ ÜYE OL"}
+              </button>
+
+              <button
+                onClick={() => setRecoveryMode(true)}
+                style={{
+                  width: "100%",
+                  border: "none",
+                  background: "transparent",
+                  color: "#c8adff",
+                  padding: 12,
+                  cursor: "pointer",
+                }}
+              >
+                🔑 Şifremi Unuttum
+              </button>
+            </>
+          )}
+
+          <p
+            style={{
+              color: "#9999af",
+              fontSize: 12,
+              lineHeight: 1.6,
+            }}
+          >
+            Hesap sistemi Supabase üzerinden çalışır. E-posta
+            doğrulaması etkinse kayıt sonrasında e-postanı kontrol et.
+          </p>
+        </div>
+      )}
+    </section>
+  );
+  // Ana uygulama ekranı
+  if (!loaded) {
+    return (
+      <main
+        style={{
+          minHeight: "100vh",
+          background: "#080808",
+          color: "#f5d36b",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          flexDirection: "column",
+          fontFamily: "Arial, sans-serif",
+        }}
+      >
+        <div style={{ fontSize: 42 }}>👑</div>
+        <h1>ROYAL SPIN</h1>
+        <p>Oyun yükleniyor...</p>
+      </main>
+    );
+  }
+
+  return (
+    <main
+      style={{
+        minHeight: "100vh",
+        padding: "16px",
+        boxSizing: "border-box",
+        background:
+          "radial-gradient(circle at top, #30220b 0%, #111 35%, #050505 100%)",
+        color: "#fff",
+        fontFamily: "Arial, sans-serif",
+      }}
+    >
+      {renderHeader()}
+
+      {renderNavigation()}
+
+      {renderMiniProfile()}
 
       {notice && (
         <div
           role="status"
           style={{
             ...panelStyle,
-            color: "#f5c542",
-            borderColor: "#f5c542",
+            marginTop: 12,
+            border: "1px solid #d4af37",
+            color: "#ffe7a0",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 10,
           }}
         >
-          {notice}
+          <span>{notice}</span>
+
+          <button
+            onClick={() => setNotice("")}
+            style={{
+              ...smallButtonStyle,
+              minWidth: 34,
+            }}
+          >
+            ✕
+          </button>
         </div>
       )}
 
-      {/* ANA SAYFA */}
-      {page === "home" && (
-        <section style={panelStyle}>
-          <h2 style={{ color: "#f5c542" }}>
-            ✨ Royal Spin'e Hoş Geldin!
+      {page === "home" && renderHome()}
+
+      {page === "slot" && renderSlot()}
+
+      {page === "profile" && renderProfile()}
+
+      {page === "diamonds" && renderDiamonds()}
+
+      {page === "daily" && renderDaily()}
+
+      {page === "gift" && renderGift()}
+
+      {page === "vip" && renderVIP()}
+
+      {page === "badges" && renderBadges()}
+
+      {page === "login" && renderLogin()}
+
+      {page === "history" && (
+        <section style={{ ...panelStyle, marginTop: 16 }}>
+          <h2 style={{ color: "#f5d36b", marginTop: 0 }}>
+            🎰 Slot Geçmişi
           </h2>
 
-          <p style={{ color: "#ddd" }}>
-            Oyna, XP kazan, seviyeni yükselt ve rozetlerini topla.
-          </p>
-
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "center",
-              gap: 12,
-              flexWrap: "wrap",
-              marginTop: 20,
-            }}
-          >
-            <button
-              className="royal-control"
-              style={buttonStyle}
-              onClick={() => setPage("slot")}
-            >
-              🎰 Slot Oyna
-            </button>
-
-            <button
-              className="royal-control"
-              style={buttonStyle}
-              onClick={() => setPage("profile")}
-            >
-              👤 Profilim
-            </button>
-
-            <button
-              className="royal-control"
-              style={buttonStyle}
-              onClick={() => setPage("daily")}
-            >
-              🎁 Günlük Ödül
-            </button>
-          </div>
-
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-              gap: 10,
-              marginTop: 22,
-            }}
-          >
-            {[
-              ["🎮", "Oynanan Oyun", data.gamesPlayed],
-              ["🎰", "Jackpot", data.jackpotWins],
-              ["💰", "Toplam Kazanç", formatCoins(data.totalEarned)],
-              ["🎁", "Hediye Edilen", formatCoins(data.giftedCoins)],
-            ].map(([icon, label, value]) => (
-              <div
-                key={label}
-                style={{
-                  background: "#222233",
-                  borderRadius: 12,
-                  padding: 14,
-                }}
-              >
-                <div style={{ fontSize: 25 }}>{icon}</div>
-                <div style={{ color: "#aaa", fontSize: 12 }}>
-                  {label}
-                </div>
-                <strong style={{ color: "#f5c542" }}>
-                  {value}
-                </strong>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* SLOT */}
-      {page === "slot" && (
-        <section
-          style={{
-            ...panelStyle,
-            maxWidth: 540,
-            background: "linear-gradient(180deg, #241333, #09090f)",
-            border: "2px solid #f5c542",
-            boxShadow: "0 0 30px #f5c54233",
-          }}
-        >
-          <h2 style={{ color: "#f5c542", fontSize: 30 }}>
-            👑 ROYAL MEGA SLOT
-          </h2>
-
-          <p style={{ color: "#ddd" }}>
-            Bahsini seç, makaraları çevir ve ödül kazan!
-          </p>
-
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "center",
-              gap: 8,
-              margin: "24px 0",
-              padding: 12,
-              background: "#09090f",
-              border: "2px solid #a855f7",
-              borderRadius: 16,
-            }}
-          >
-            {slotSymbols.map((symbol, index) => (
-              <div
-                key={index}
-                className={
-                  slotEffect && !slotSpinning
-                    ? "royal-slot-win"
-                    : "royal-slot-symbol"
-                }
-                style={{
-                  flex: "1 1 0",
-                  minWidth: 0,
-                  height: "clamp(75px, 19vw, 100px)",
-                  display: "grid",
-                  placeItems: "center",
-                  background: "linear-gradient(180deg, #fff, #ded8f5)",
-                  borderRadius: 12,
-                  fontSize: "clamp(30px, 8vw, 48px)",
-                  boxShadow: "inset 0 0 12px #f5c542",
-                }}
-              >
-                {slotSpinning ? "🎰" : symbol}
-              </div>
-            ))}
-          </div>
-
-          <h3 style={{ color: "#f5c542" }}>
-            🪙 {formatCoins(coins)} Coin
-          </h3>
-
-          <h3>💰 Bahis Miktarı</h3>
-
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-              gap: 8,
-            }}
-          >
-            {[100, 250, 500, 1000].map((amount) => (
-              <button
-                key={amount}
-                className="royal-control"
-                disabled={slotSpinning || autoSpin}
-                onClick={() => selectBet(amount)}
-                style={{
-                  ...buttonStyle,
-                  background: slotBet === amount ? "#f5c542" : "#29243a",
-                  color: slotBet === amount ? "#111" : "white",
-                }}
-              >
-                🪙 {formatCoins(amount)}
-              </button>
-            ))}
-          </div>
-
-          <input
-            aria-label="Özel bahis"
-            type="number"
-            min="100"
-            max="1000000"
-            value={customBet}
-            disabled={slotSpinning || autoSpin}
-            onChange={(event) => setCustomBet(event.target.value)}
-            style={inputStyle}
-          />
-
-          <button
-            className="royal-control"
-            disabled={slotSpinning || autoSpin}
-            style={buttonStyle}
-            onClick={applyCustomBet}
-          >
-            Bahsi Uygula
-          </button>
-
-          <p>
-            Seçili bahis:{" "}
-            <strong style={{ color: "#f5c542" }}>
-              {formatCoins(slotBet)} coin
-            </strong>
-          </p>
-
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "center",
-              flexWrap: "wrap",
-              gap: 8,
-              margin: "18px 0",
-            }}
-          >
-            <button
-              className="royal-control"
-              style={{
-                ...buttonStyle,
-                background: fastSpin ? "#16a34a" : "#34344c",
-                color: "white",
-              }}
-              onClick={() => setFastSpin((value) => !value)}
-            >
-              {fastSpin ? "⚡ Hızlı Açık" : "⚡ Hızlı Kapalı"}
-            </button>
-
-            <button
-              className="royal-control"
-              style={{
-                ...buttonStyle,
-                background: soundEnabled ? "#16a34a" : "#34344c",
-                color: "white",
-              }}
-              onClick={() => setSoundEnabled((value) => !value)}
-            >
-              {soundEnabled ? "🔊 Ses Açık" : "🔇 Ses Kapalı"}
-            </button>
-          </div>
-
-          <button
-            className="royal-control"
-            disabled={slotSpinning || autoSpin || coins < slotBet}
-            style={{
-              ...buttonStyle,
-              width: "100%",
-              fontSize: 19,
-              padding: 16,
-            }}
-            onClick={playSlot}
-          >
-            {slotSpinning
-              ? "🎰 ÇEVRİLİYOR..."
-              : `🎰 ${formatCoins(slotBet)} COIN İLE ÇEVİR`}
-          </button>
-
-          <h3 style={{ color: "#f5c542", marginTop: 25 }}>
-            🔄 Otomatik Çevirme
-          </h3>
-
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "center",
-              gap: 8,
-              flexWrap: "wrap",
-            }}
-          >
-            {[10, 25, 50].map((count) => (
-              <button
-                key={count}
-                className="royal-control"
-                disabled={slotSpinning || autoSpin}
-                style={{
-                  ...buttonStyle,
-                  background:
-                    autoSpinCount === count ? "#f5c542" : "#34344c",
-                  color: autoSpinCount === count ? "#111" : "white",
-                }}
-                onClick={() => setAutoSpinCount(count)}
-              >
-                {count} Tur
-              </button>
-            ))}
-          </div>
-
-          {!autoSpin ? (
-            <button
-              className="royal-control"
-              disabled={slotSpinning || coins < slotBet}
-              style={{
-                ...buttonStyle,
-                background: "#7c3aed",
-                color: "white",
-                width: "100%",
-                marginTop: 10,
-              }}
-              onClick={startAutoSpin}
-            >
-              ▶️ {autoSpinCount} Turu Başlat
-            </button>
+          {(!slotHistory || slotHistory.length === 0) ? (
+            <p style={{ color: "#aaa" }}>
+              Henüz oyun geçmişin bulunmuyor.
+            </p>
           ) : (
-            <button
-              className="royal-control"
-              style={{
-                ...buttonStyle,
-                background: "#dc2626",
-                color: "white",
-                width: "100%",
-                marginTop: 10,
-              }}
-              onClick={stopAutoSpin}
-            >
-              ⏹️ Durdur
-            </button>
-          )}
-
-          {autoSpin && (
-            <p style={{ color: "#c4b5fd" }}>
-              Kalan tur: {autoRemaining}
-            </p>
-          )}
-
-          {slotMessage && (
-            <div
-              role="status"
-              className={slotEffect ? "royal-slot-win" : ""}
-              style={{
-                marginTop: 20,
-                padding: 15,
-                borderRadius: 12,
-                background: "#171326",
-                border: "1px solid #f5c542",
-                color: "#f5c542",
-                fontWeight: "bold",
-                overflowWrap: "anywhere",
-              }}
-            >
-              {slotMessage}
-            </div>
-          )}
-
-          <div
-            style={{
-              marginTop: 22,
-              padding: 14,
-              background: "#11101b",
-              borderRadius: 12,
-              textAlign: "left",
-              color: "#ddd",
-              fontSize: 14,
-            }}
-          >
-            <h3 style={{ color: "#f5c542", textAlign: "center" }}>
-              🏆 Ödül Tablosu
-            </h3>
-
-            <p>👑 👑 👑 — Bahsin 100 katı</p>
-            <p>7️⃣ 7️⃣ 7️⃣ — Bahsin 50 katı</p>
-            <p>Üç aynı sembol — Bahsin 10 katı</p>
-            <p>İki aynı sembol — Bahsin 2 katı</p>
-            <p style={{ color: "#aaa", fontSize: 12 }}>
-              VIP çarpanı kazanca uygulanır. Jackpot ayrıca 2 elmas verir.
-            </p>
-          </div>
-
-          <div
-            style={{
-              marginTop: 22,
-              textAlign: "left",
-              background: "#11101b",
-              padding: 14,
-              borderRadius: 12,
-            }}
-          >
-            <h3 style={{ color: "#f5c542", textAlign: "center" }}>
-              📜 Son 10 Oyun
-            </h3>
-
-            {slotHistory.length === 0 ? (
-              <p style={{ color: "#aaa", textAlign: "center" }}>
-                Henüz oyun geçmişin yok.
-              </p>
-            ) : (
-              slotHistory.map((item) => (
+            <div style={{ display: "grid", gap: 10 }}>
+              {slotHistory.map((item, index) => (
                 <div
-                  key={item.id}
+                  key={item.id || index}
                   style={{
+                    padding: 12,
+                    borderRadius: 12,
+                    background: "#171717",
+                    border: "1px solid #393024",
                     display: "flex",
                     justifyContent: "space-between",
                     alignItems: "center",
-                    gap: 8,
-                    padding: "10px 0",
-                    borderBottom: "1px solid #303047",
-                    fontSize: 13,
+                    gap: 10,
+                    flexWrap: "wrap",
                   }}
                 >
                   <div>
-                    <div style={{ fontSize: 20 }}>
-                      {item.symbols.join(" ")}
+                    <div style={{ fontWeight: "bold" }}>
+                      {item.result || item.symbols || "Slot oyunu"}
                     </div>
-                    <div style={{ color: "#999" }}>
-                      {item.time} · Bahis {formatCoins(item.bet)}
-                    </div>
-                    <div style={{ color: "#c9c6d8" }}>
-                      {item.label}
-                    </div>
+
+                    <small style={{ color: "#aaa" }}>
+                      {item.date || item.time || ""}
+                    </small>
                   </div>
 
                   <strong
                     style={{
-                      color: item.payout > 0 ? "#5be39a" : "#ff7777",
-                      whiteSpace: "nowrap",
+                      color:
+                        Number(item.win || item.reward || 0) > 0
+                          ? "#66e09a"
+                          : "#ff8585",
                     }}
                   >
-                    {item.payout > 0
-                      ? `+${formatCoins(item.payout)}`
-                      : "0"}
+                    {Number(item.win || item.reward || 0) > 0 ? "+" : ""}
+                    {Number(item.win || item.reward || 0)} 🪙
                   </strong>
                 </div>
-              ))
-            )}
-          </div>
-
-          <p style={{ color: "#aaa", fontSize: 12, marginTop: 20 }}>
-            Demo oyunudur. Coin ve elmasların gerçek para değeri yoktur.
-          </p>
-        </section>
-      )}
-
-      {/* PROFİL */}
-      {page === "profile" && (
-        <section style={panelStyle}>
-          <h2 style={{ color: "#f5c542" }}>👤 OYUNCU PROFİLİ</h2>
-
-          <div style={{ margin: "22px auto" }}>
-            {data.profileImage ? (
-              <img
-                src={data.profileImage}
-                alt="Profil fotoğrafı"
-                style={avatarStyle}
-              />
-            ) : (
-              <div
-                style={{
-                  ...avatarStyle,
-                  display: "grid",
-                  placeItems: "center",
-                  margin: "auto",
-                  fontSize: 45,
-                  boxSizing: "border-box",
-                }}
-              >
-                👑
-              </div>
-            )}
-          </div>
-
-          <h2
-            style={{
-              color: activeVip ? "#f5c542" : "white",
-              overflowWrap: "anywhere",
-            }}
-          >
-            {data.profileName}
-          </h2>
-
-          {activeVip && (
-            <p style={{ color: "#f5c542" }}>
-              ☑️ {activeVip.name} Üyesi
-            </p>
+              ))}
+            </div>
           )}
 
-          <p style={{ color: "#c9c6d8" }}>
-            ⭐ Seviye {level} · {xp} XP
-          </p>
-
-          <label
-            style={{
-              display: "block",
-              margin: "20px auto",
-              color: "#ddd",
-            }}
-          >
-            Profil fotoğrafı seç
-            <input
-              type="file"
-              accept="image/*"
-              onChange={handleProfileImage}
-              style={{
-                display: "block",
-                margin: "12px auto",
-                maxWidth: "100%",
-              }}
-            />
-          </label>
-
-          <input
-            style={inputStyle}
-            maxLength={20}
-            placeholder="Yeni oyuncu adın"
-            value={profileNameInput}
-            onChange={(event) =>
-              setProfileNameInput(event.target.value)
-            }
-          />
-
           <button
-            className="royal-control"
-            style={buttonStyle}
-            onClick={saveProfileName}
-          >
-            Profil Adını Kaydet
-          </button>
-
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-              gap: 10,
-              marginTop: 24,
-            }}
-          >
-            {[
-              ["🎮", "Oyun", data.gamesPlayed],
-              ["🎰", "Jackpot", data.jackpotWins],
-              ["💰", "Toplam Kazanç", formatCoins(data.totalEarned)],
-              ["🎁", "Hediye", formatCoins(data.giftedCoins)],
-            ].map(([icon, label, value]) => (
-              <div
-                key={label}
-                style={{
-                  padding: 12,
-                  background: "#222233",
-                  borderRadius: 12,
-                }}
-              >
-                <div style={{ fontSize: 24 }}>{icon}</div>
-                <div style={{ color: "#aaa", fontSize: 12 }}>{label}</div>
-                <strong style={{ color: "#f5c542" }}>{value}</strong>
-              </div>
-            ))}
-          </div>
-
-          <button
-            className="royal-control"
-            style={{ ...buttonStyle, marginTop: 22 }}
-            onClick={() => setPage("diamonds")}
-          >
-            💎 Çerçeve Mağazasını Aç
-          </button>
-        </section>
-      )}
-
-      {/* ELMAS VE ÇERÇEVE MAĞAZASI */}
-      {page === "diamonds" && (
-        <section>
-          <div style={panelStyle}>
-            <h2 style={{ color: "#7dd3fc" }}>💎 ELMAS MAĞAZASI</h2>
-
-            <div
-              style={{
-                fontSize: 28,
-                color: "#7dd3fc",
-                fontWeight: "bold",
-              }}
-            >
-              💎 {formatCoins(diamonds)}
-            </div>
-
-            <p style={{ color: "#ddd" }}>
-              Jackpot kazanarak ve günlük ödüllerle elmas topla.
-            </p>
-
-            <p style={{ color: "#aaa", fontSize: 12 }}>
-              Bu demo sürümünde gerçek para ile elmas satın alma yoktur.
-            </p>
-          </div>
-
-          <h2 style={{ color: "#f5c542" }}>🖼️ ÇERÇEVE MAĞAZASI</h2>
-
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-              gap: 12,
-              maxWidth: 850,
-              margin: "20px auto",
-            }}
-          >
-            {FRAMES.map((frame) => {
-              const owned = data.ownedFrames.includes(frame.id);
-              const active = data.activeFrame === frame.id;
-
-              return (
-                <article
-                  key={frame.id}
-                  style={{
-                    ...panelStyle,
-                    margin: 0,
-                    borderColor: frame.color,
-                  }}
-                >
-                  <div
-                    style={{
-                      width: 80,
-                      height: 80,
-                      border: `5px solid ${frame.color}`,
-                      borderRadius: "50%",
-                      margin: "0 auto 12px",
-                      display: "grid",
-                      placeItems: "center",
-                      fontSize: 36,
-                    }}
-                  >
-                    {frame.icon}
-                  </div>
-
-                  <h3 style={{ color: frame.color }}>{frame.name}</h3>
-
-                  <p>💎 {frame.price} elmas</p>
-
-                  <button
-                    className="royal-control"
-                    style={{
-                      ...buttonStyle,
-                      width: "100%",
-                      opacity: active ? 0.7 : 1,
-                    }}
-                    disabled={active}
-                    onClick={() => buyFrame(frame)}
-                  >
-                    {active
-                      ? "✓ Aktif"
-                      : owned
-                        ? "Çerçeveyi Kullan"
-                        : "Satın Al"}
-                  </button>
-                </article>
-              );
-            })}
-          </div>
-        </section>
-      )}
-
-      {/* GÜNLÜK ÖDÜL */}
-      {page === "daily" && (
-        <section style={panelStyle}>
-          <h2 style={{ color: "#f5c542" }}>🎁 GÜNLÜK ÖDÜL</h2>
-
-          <div style={{ fontSize: 55, margin: "20px 0" }}>🎁</div>
-
-          <h3>
-            🔥 Günlük seri: {data.dailyStreak} gün
-          </h3>
-
-          <p style={{ color: "#ddd" }}>
-            Her gün giriş yaparak coin, elmas ve XP kazan.
-          </p>
-
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-              gap: 10,
-              margin: "20px 0",
-            }}
-          >
-            <div style={{ background: "#222233", padding: 14, borderRadius: 12 }}>
-              <div style={{ fontSize: 28 }}>🪙</div>
-              <strong>500–2.250 Coin</strong>
-            </div>
-
-            <div style={{ background: "#222233", padding: 14, borderRadius: 12 }}>
-              <div style={{ fontSize: 28 }}>💎</div>
-              <strong>1–5 Elmas</strong>
-            </div>
-          </div>
-
-          <p style={{ color: "#c9c6d8" }}>
-            3 günlük seride daha fazla elmas, 7 günlük seride en yüksek
-            günlük elmas ödülünü kazanırsın.
-          </p>
-
-          <button
-            className="royal-control"
-            disabled={data.dailyClaimDate === dateKey()}
+            onClick={clearSlotHistory}
             style={{
               ...buttonStyle,
-              width: "100%",
-              fontSize: 18,
-              opacity: data.dailyClaimDate === dateKey() ? 0.5 : 1,
+              marginTop: 14,
+              background: "linear-gradient(135deg, #7c2424, #3d1111)",
             }}
-            onClick={claimDailyReward}
           >
-            {data.dailyClaimDate === dateKey()
-              ? "✓ Bugünkü Ödül Alındı"
-              : "🎁 Ödülümü Al"}
+            🗑️ Geçmişi Temizle
           </button>
-        </section>
-      )}
-
-      {/* COIN HEDİYE */}
-      {page === "gift" && (
-        <section style={panelStyle}>
-          <h2 style={{ color: "#f5c542" }}>🎁 COIN HEDİYE ET</h2>
-
-          <p style={{ color: "#ddd" }}>
-            Demo sürümünde hediye işlemleri yalnızca kendi oyun
-            istatistiklerini günceller.
-          </p>
-
-          <div style={{ color: "#f5c542", fontWeight: "bold" }}>
-            🪙 Bakiyen: {formatCoins(coins)}
-          </div>
-
-          <input
-            style={inputStyle}
-            placeholder="Oyuncu adı"
-            maxLength={20}
-            value={giftRecipient}
-            onChange={(event) => setGiftRecipient(event.target.value)}
-          />
-
-          <input
-            style={inputStyle}
-            type="number"
-            min="100"
-            max="1000000"
-            value={giftAmount}
-            onChange={(event) => setGiftAmount(event.target.value)}
-            placeholder="Hediye coin miktarı"
-          />
-
-          <button
-            className="royal-control"
-            style={{ ...buttonStyle, width: "100%" }}
-            onClick={giftCoinsToPlayer}
-          >
-            🎁 Coin Hediyesi Gönder
-          </button>
-
-          <p style={{ color: "#aaa", fontSize: 12, marginTop: 16 }}>
-            Gerçek oyuncular arasında transfer için sunucu tarafında
-            güvenli bir hediye sistemi kurulmalıdır.
-          </p>
-        </section>
-      )}
-
-      {/* VIP MARKET */}
-      {page === "vip" && (
-        <section>
-          <h2 style={{ color: "#f5c542" }}>👑 VIP MARKET</h2>
-
-          <p>Coinlerinle VIP seviyeni yükselt.</p>
-
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
-              gap: 14,
-              maxWidth: 800,
-              margin: "20px auto",
-            }}
-          >
-            {VIP_LEVELS.map((item) => {
-              const owned = vip >= item.id;
-
-              return (
-                <article
-                  key={item.id}
-                  style={{
-                    ...panelStyle,
-                    margin: 0,
-                    borderColor: item.id === 2 ? "#c084fc" : "#f5c542",
-                  }}
-                >
-                  <h3
-                    style={{
-                      fontSize: 26,
-                      color: item.id === 2 ? "#d8a7ff" : "#f5c542",
-                    }}
-                  >
-                    {item.id === 1 ? "💎" : "👑"} {item.name}
-                  </h3>
-
-                  <div style={{ fontSize: 21, margin: "18px 0" }}>
-                    🪙 {formatCoins(item.price)}
-                  </div>
-
-                  {item.features.map((feature) => (
-                    <p key={feature} style={{ color: "#ddd" }}>
-                      {feature}
-                    </p>
-                  ))}
-
-                  <button
-                    className="royal-control"
-                    disabled={owned}
-                    style={{
-                      ...buttonStyle,
-                      width: "100%",
-                      marginTop: 14,
-                    }}
-                    onClick={() => buyVip(item.id)}
-                  >
-                    {owned ? "✓ Sahipsin" : "VIP Satın Al"}
-                  </button>
-                </article>
-              );
-            })}
-          </div>
-        </section>
-      )}
-
-      {/* ROZETLER */}
-      {page === "badges" && (
-        <section>
-          <h2 style={{ color: "#f5c542" }}>🏆 BAŞARI ROZETLERİ</h2>
-
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-              gap: 12,
-              maxWidth: 850,
-              margin: "20px auto",
-            }}
-          >
-            {ACHIEVEMENTS.map((item) => {
-              const unlocked = achievements[item.id];
-
-              return (
-                <article
-                  key={item.id}
-                  style={{
-                    ...panelStyle,
-                    margin: 0,
-                    opacity: unlocked ? 1 : 0.7,
-                    borderColor: unlocked ? "#f5c542" : "#303047",
-                  }}
-                >
-                  <div style={{ fontSize: 42 }}>{item.icon}</div>
-
-                  <h3 style={{ color: unlocked ? "#f5c542" : "white" }}>
-                    {item.name}
-                  </h3>
-
-                  <p style={{ color: "#c9c6d8", fontSize: 14 }}>
-                    {item.description}
-                  </p>
-
-                  <strong style={{ color: unlocked ? "#5be39a" : "#999" }}>
-                    {unlocked ? "✓ Açıldı" : "🔒 Kilitli"}
-                  </strong>
-                </article>
-              );
-            })}
-          </div>
-        </section>
-      )}
-
-      {/* SESLİ ODALAR */}
-      {page === "rooms" && (
-        <section style={panelStyle}>
-          <h2>🎙️ Sesli Odalar</h2>
-          <p style={{ color: "#ddd" }}>
-            Sesli oda ve mikrofon sistemi henüz bağlanmadı.
-          </p>
-          <p style={{ color: "#aaa", fontSize: 13 }}>
-            Gerçek zamanlı sesli sohbet için ayrıca bir ses sunucusu
-            veya uygun bir sesli iletişim hizmeti entegre edilmelidir.
-          </p>
-        </section>
-      )}
-
-      {/* GİRİŞ */}
-      {page === "login" && (
-        <section style={panelStyle}>
-          <h2 style={{ color: "#f5c542" }}>👑 ROYAL SPIN ÜYELİK</h2>
-
-          {user ? (
-            <>
-              <h3 style={{ color: "#5be39a" }}>
-                ✓ Giriş yapıldı
-              </h3>
-
-              <p>Hesap: {user.email}</p>
-
-              <button
-                className="royal-control"
-                style={buttonStyle}
-                onClick={signOut}
-              >
-                Çıkış Yap
-              </button>
-            </>
-          ) : recoveryMode ? (
-            <>
-              <p>Yeni şifreni belirle.</p>
-
-              <input
-                style={inputStyle}
-                type="password"
-                placeholder="Yeni şifre (en az 6 karakter)"
-                value={newPassword}
-                onChange={(event) => setNewPassword(event.target.value)}
-              />
-
-              <button
-                className="royal-control"
-                disabled={authBusy}
-                style={buttonStyle}
-                onClick={updatePassword}
-              >
-                {authBusy ? "Bekle..." : "Şifreyi Kaydet"}
-              </button>
-            </>
-          ) : (
-            <>
-              <input
-                style={inputStyle}
-                type="email"
-                placeholder="E-posta adresin"
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-              />
-
-              <input
-                style={inputStyle}
-                type="password"
-                placeholder="Şifren"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-              />
-
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "center",
-                  flexWrap: "wrap",
-                  gap: 10,
-                }}
-              >
-                <button
-                  className="royal-control"
-                  disabled={authBusy}
-                  style={buttonStyle}
-                  onClick={() => handleAuth("signup")}
-                >
-                  📝 Kayıt Ol
-                </button>
-
-                <button
-                  className="royal-control"
-                  disabled={authBusy}
-                  style={{
-                    ...buttonStyle,
-                    background: "#34344c",
-                    color: "white",
-                  }}
-                  onClick={() => handleAuth("login")}
-                >
-                  🔑 Giriş Yap
-                </button>
-              </div>
-
-              <button
-                className="royal-control"
-                disabled={authBusy}
-                style={{
-                  background: "transparent",
-                  color: "#f5c542",
-                  border: "none",
-                  padding: 16,
-                  cursor: "pointer",
-                }}
-                onClick={resetPassword}
-              >
-                Şifremi Unuttum
-              </button>
-            </>
-          )}
         </section>
       )}
 
       <footer
         style={{
-          marginTop: 50,
-          padding: 20,
+          textAlign: "center",
           color: "#777",
-          borderTop: "1px solid #242432",
+          fontSize: 12,
+          padding: "28px 8px 12px",
         }}
       >
-        ROYAL SPIN © 2026
+        <div style={{ color: "#d4af37", fontWeight: "bold" }}>
+          👑 ROYAL SPIN
+        </div>
 
-        <p style={{ fontSize: 12 }}>
-          Demo oyunudur. Oyun verileri bu tarayıcıda saklanır.
-        </p>
+        <p>Şansını dene, eğlencenin tadını çıkar!</p>
+
+        <small>Oyun içi sanal puanlar gerçek para değildir.</small>
       </footer>
     </main>
   );

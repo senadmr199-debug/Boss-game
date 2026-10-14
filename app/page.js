@@ -183,6 +183,16 @@ const yesterdayKey = () => {
 
 export default function Home() {
   const [page, setPage] = useState("home");
+  const [supportOpen, setSupportOpen] = useState(false);
+
+const [supportInput, setSupportInput] = useState("");
+
+const [supportMessages, setSupportMessages] = useState([
+  {
+    from: "bot",
+    text: "Merhaba! 👑 Royal Spin müşteri hizmetlerine hoş geldin. Sana nasıl yardımcı olabilirim?",
+  },
+]);
   const [data, setData] = useState(DEFAULT_DATA);
   const [loaded, setLoaded] = useState(false);
   const [notice, setNotice] = useState("");
@@ -234,7 +244,67 @@ export default function Home() {
   const addXP = useCallback((amount) => {
     setData((current) => {
       const nextXP = current.xp + amount;
+const answerSupport = (rawText) => {
+  const text = rawText.trim();
+  if (!text) return;
 
+  setSupportMessages((prev) => [
+    ...prev,
+    { from: "user", text },
+  ]);
+
+  setSupportInput("");
+
+  const lower = text.toLocaleLowerCase("tr-TR");
+  let reply = "Sorununu biraz daha ayrıntılı anlatabilir misin?";
+
+  if (
+    lower.includes("slot") ||
+    lower.includes("oyun") ||
+    lower.includes("açılmıyor")
+  ) {
+    reply =
+      "🎰 Slot oyunu açılmıyorsa sayfayı yenilemeyi dene. Sorun devam ederse hangi ekranda kaldığını belirt.";
+  } else if (
+    lower.includes("coin") ||
+    lower.includes("elmas") ||
+    lower.includes("bakiye")
+  ) {
+    reply =
+      "🪙 Coin veya elmas bakiyenle ilgili sorun yaşıyorsan sayfayı yenile ve bakiyeni tekrar kontrol et.";
+  } else if (
+    lower.includes("giriş") ||
+    lower.includes("şifre") ||
+    lower.includes("hesap") ||
+    lower.includes("kayıt")
+  ) {
+    reply =
+      "🔐 Hesabına erişemiyorsan giriş bilgilerini kontrol et. Şifreni kimseyle paylaşma.";
+  } else if (lower.includes("vip")) {
+    reply =
+      "👑 VIP özellikleriyle ilgili sorununu yaz. Hangi VIP seviyesini kullandığını belirt.";
+  } else if (
+    lower.includes("insan") ||
+    lower.includes("temsilci") ||
+    lower.includes("canlı destek")
+  ) {
+    reply =
+      "💬 Bu otomatik destek botudur; şu anda canlı bir temsilciye bağlanma özelliği bulunmuyor.";
+  } else if (
+    lower.includes("merhaba") ||
+    lower.includes("selam")
+  ) {
+    reply =
+      "Merhaba! 👑 Royal Spin desteğe hoş geldin. Slot, coin, elmas veya VIP konusunda yardımcı olabilirim.";
+  }
+
+  setTimeout(() => {
+    setSupportMessages((prev) => [
+      ...prev,
+      { from: "bot", text: reply },
+    ]);
+  }, 300);
+};
       return {
         ...current,
         xp: nextXP,
@@ -2612,6 +2682,123 @@ export default function Home() {
 
         <small>Oyun içi sanal puanlar gerçek para değildir.</small>
       </footer>
+      {/* ROYAL SPIN MÜŞTERİ HİZMETLERİ */}
+<div
+  style={{
+    position: "fixed",
+    right: 16,
+    bottom: 16,
+    zIndex: 9999,
+    fontFamily: "Arial, sans-serif",
+  }}
+>
+  {supportOpen && (
+    <div
+      style={{
+        width: "min(340px, calc(100vw - 32px))",
+        height: 420,
+        maxHeight: "70vh",
+        background: "#111",
+        border: "1px solid #d4af37",
+        borderRadius: 16,
+        display: "flex",
+        flexDirection: "column",
+        overflow: "hidden",
+        marginBottom: 10,
+        color: "white",
+        boxShadow: "0 8px 30px #0008",
+      }}
+    >
+      <div
+        style={{
+          padding: 14,
+          background: "linear-gradient(135deg,#b8860b,#f5d76e)",
+          color: "#111",
+          fontWeight: "bold",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+        }}
+      >
+        👑 Royal Spin Destek
+        <button onClick={() => setSupportOpen(false)}>✕</button>
+      </div>
+
+      <div
+        style={{
+          flex: 1,
+          overflowY: "auto",
+          padding: 10,
+          display: "flex",
+          flexDirection: "column",
+          gap: 8,
+        }}
+      >
+        {supportMessages.map((message, index) => (
+          <div
+            key={index}
+            style={{
+              alignSelf:
+                message.from === "user" ? "flex-end" : "flex-start",
+              background:
+                message.from === "user" ? "#574315" : "#252525",
+              borderRadius: 10,
+              padding: 10,
+              maxWidth: "85%",
+              overflowWrap: "anywhere",
+            }}
+          >
+            {message.text}
+          </div>
+        ))}
+      </div>
+
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          answerSupport(supportInput);
+        }}
+        style={{ display: "flex", gap: 6, padding: 10 }}
+      >
+        <input
+          value={supportInput}
+          onChange={(event) => setSupportInput(event.target.value)}
+          placeholder="Mesajını yaz..."
+          style={{
+            flex: 1,
+            minWidth: 0,
+            padding: 10,
+            borderRadius: 8,
+            border: "1px solid #555",
+            background: "#202020",
+            color: "white",
+          }}
+        />
+        <button type="submit" style={{ padding: "8px 12px" }}>
+          ➤
+        </button>
+      </form>
+    </div>
+  )}
+
+  <button
+    onClick={() => setSupportOpen((open) => !open)}
+    style={{
+      display: "block",
+      marginLeft: "auto",
+      padding: "13px 18px",
+      borderRadius: 30,
+      border: "1px solid #f5d76e",
+      background: "linear-gradient(135deg,#b8860b,#f5d76e)",
+      color: "#111",
+      fontWeight: "bold",
+      cursor: "pointer",
+      boxShadow: "0 5px 20px #0006",
+    }}
+  >
+    💬 Müşteri Hizmetleri
+  </button>
+</div>      
     </main>
   );
 }

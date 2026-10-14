@@ -839,32 +839,27 @@ const answerSupport = (rawText) => {
     );
   };
 
-  // VIP satın al
-  const buyVIP = (vipLevel) => {
-    const selected = VIP_LEVELS.find((item) => item.id === vipLevel);
+if (!selected) return;
 
-    if (!selected) return;
+if ((data.vipLevel || 0) >= vipLevel) {
+  notify("👑 Bu VIP seviyesine zaten sahipsin!");
+  return;
+}
 
-    if (data.vip >= vipLevel) {
-      notify("👑 Bu VIP seviyesine zaten sahipsin!");
-      return;
-    }
+if (data.coins < selected.price) {
+  notify(
+    `❌ Bu VIP için ${formatCoins(selected.price)} coin gerekiyor.`
+  );
+  return;
+}
 
-    if (data.coins < selected.price) {
-      notify(
-        `❌ Bu VIP için ${formatCoins(selected.price)} coin gerekiyor.`
-      );
-      return;
-    }
+setData((previous) => ({
+  ...previous,
+  coins: previous.coins - selected.price,
+  vipLevel: vipLevel,
+}));
 
-    setData((previous) => ({
-      ...previous,
-      coins: previous.coins - selected.price,
-      vip: vipLevel,
-    }));
-
-    notify(`👑 ${selected.name} satın alındı!`);
-  };
+notify(`👑 ${selected.name} satın alındı!`);
 
   // Elmasla çerçeve satın al
   const buyFrame = (frame) => {
@@ -1001,6 +996,7 @@ const answerSupport = (rawText) => {
     { id: "daily", label: "Günlük Ödül", icon: "🎁" },
     { id: "gift", label: "Hediye", icon: "🎉" },
     { id: "vip", label: "VIP Market", icon: "👑" },
+    { id: "svip", label: "SVIP Market", icon: "💎" },
     { id: "badges", label: "Rozetler", icon: "🏆" },
     { id: "history", label: "Oyun Geçmişi", icon: "📜" },
     { id: "login", label: "Giriş / Kayıt", icon: "🔐" },
@@ -2162,7 +2158,7 @@ const answerSupport = (rawText) => {
       </div>
 
       {VIP_LEVELS.map((item) => {
-        const owned = data.vip >= item.id;
+        const owned = (data.vipLevel || 0) >= item.id;
 
         return (
           <div
@@ -2246,7 +2242,36 @@ const answerSupport = (rawText) => {
       </p>
     </section>
   );
+  {SVIP_LEVELS.map((item) => {
+    const owned = (data.vip || 0) >= item.id;
 
+    return (
+      <div key={item.id} style={cardStyle}>
+        <h2 style={{ color: "#d8a8ff", textAlign: "center" }}>
+          💎 {item.name}
+        </h2>
+
+        <h3 style={{ color: "#fff", textAlign: "center" }}>
+          {formatCoins(item.price)} Coin
+        </h3>
+
+        {item.features.map((feature) => (
+          <p key={feature} style={{ color: "#ddd" }}>
+            {feature}
+          </p>
+        ))}
+
+        <button
+          onClick={() => buySVIP(item.id)}
+          disabled={owned}
+          style={{ ...buttonStyle, width: "100%" }}
+        >
+          {owned ? "✅ SAHİPSİN" : `${item.name} SATIN AL`}
+        </button>
+      </div>
+    );
+  })}
+</section>
   // Başarı rozetleri
   const renderBadges = () => (
     <section style={panelStyle}>
@@ -2618,7 +2643,7 @@ const answerSupport = (rawText) => {
       {page === "gift" && renderGift()}
 
       {page === "vip" && renderVIP()}
-
+      {page === "svip" && renderSVIP()}
       {page === "badges" && renderBadges()}
 
       {page === "login" && renderLogin()}

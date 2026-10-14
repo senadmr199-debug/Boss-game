@@ -2272,6 +2272,7 @@ notify(`👑 ${selected.name} satın alındı!`);
     );
   })}
 </section>
+{page === "svip" && renderSVIP()}
   // Başarı rozetleri
   const renderBadges = () => (
     <section style={panelStyle}>

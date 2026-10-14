@@ -73,6 +73,8 @@ const ACHIEVEMENTS = [
   },
 ];
 
+const SYMBOLS = ["🍒", "🍋", "🍇", "💎", "7️⃣", "👑"];
+
 const panelStyle = {
   background: "#151522",
   border: "1px solid #303047",
@@ -106,6 +108,9 @@ const inputStyle = {
   border: "1px solid #555",
 };
 
+const formatCoins = (value) =>
+  Math.floor(value).toLocaleString("tr-TR");
+
 export default function Home() {
   const [page, setPage] = useState("home");
 
@@ -126,14 +131,26 @@ export default function Home() {
   const [user, setUser] = useState(null);
   const [authBusy, setAuthBusy] = useState(false);
 
-  // Slot değişkenleri
+  // SLOT 2.0
   const [slotSymbols, setSlotSymbols] = useState([
     "🍒",
-    "🍋",
+    "👑",
     "💎",
   ]);
+
   const [slotSpinning, setSlotSpinning] = useState(false);
   const [slotMessage, setSlotMessage] = useState("");
+  const [slotBet, setSlotBet] = useState(100);
+  const [customBet, setCustomBet] = useState("100");
+
+  const [fastSpin, setFastSpin] = useState(false);
+  const [autoSpin, setAutoSpin] = useState(false);
+  const [autoSpinCount, setAutoSpinCount] = useState(10);
+  const [autoRemaining, setAutoRemaining] = useState(0);
+
+  const [slotHistory, setSlotHistory] = useState([]);
+  const [soundEnabled, setSoundEnabled] = useState(false);
+  const [slotEffect, setSlotEffect] = useState(false);
 
   // Kayıtlı oyun verilerini yükle
   useEffect(() => {
@@ -149,6 +166,11 @@ export default function Home() {
         setGamesPlayed(data.gamesPlayed ?? 0);
         setJackpotWins(data.jackpotWins ?? 0);
         setGiftedCoins(data.giftedCoins ?? 0);
+        setSlotHistory(
+          Array.isArray(data.slotHistory)
+            ? data.slotHistory.slice(0, 10)
+            : []
+        );
       }
     } catch {
       setNotice("Kayıtlı oyun verileri okunamadı.");
@@ -162,21 +184,20 @@ export default function Home() {
     if (!gameDataLoaded) return;
 
     try {
-      const data = {
-        coins,
-        vip,
-        totalEarned,
-        gamesPlayed,
-        jackpotWins,
-        giftedCoins,
-      };
-
       localStorage.setItem(
         "boss-game-data",
-        JSON.stringify(data)
+        JSON.stringify({
+          coins,
+          vip,
+          totalEarned,
+          gamesPlayed,
+          jackpotWins,
+          giftedCoins,
+          slotHistory,
+        })
       );
     } catch {
-      // Tarayıcı depolaması kullanılamazsa oyun çalışmaya devam eder.
+      // Depolama kapalıysa oyun çalışmaya devam eder.
     }
   }, [
     gameDataLoaded,
@@ -186,9 +207,10 @@ export default function Home() {
     gamesPlayed,
     jackpotWins,
     giftedCoins,
+    slotHistory,
   ]);
 
-  // Kullanıcı oturumu ve şifre kurtarma
+  // Supabase oturumu
   useEffect(() => {
     let mounted = true;
 
@@ -224,6 +246,45 @@ export default function Home() {
 
   const notify = (message) => {
     setNotice(message);
+  };
+
+  // Ses efekti
+  const playSound = (type) => {
+    if (!soundEnabled || typeof window === "undefined") return;
+
+    try {
+      const AudioContextClass =
+        window.AudioContext || window.webkitAudioContext;
+
+      if (!AudioContextClass) return;
+
+      const audio = new AudioContextClass();
+      const oscillator = audio.createOscillator();
+      const gain = audio.createGain();
+
+      oscillator.connect(gain);
+      gain.connect(audio.destination);
+
+      oscillator.type = "sine";
+
+      oscillator.frequency.value =
+        type === "win" ? 880 : type === "jackpot" ? 1200 : 330;
+
+      gain.gain.setValueAtTime(0.12, audio.currentTime);
+      gain.gain.exponentialRampToValueAtTime(
+        0.001,
+        audio.currentTime + 0.25
+      );
+
+      oscillator.start();
+      oscillator.stop(audio.currentTime + 0.25);
+
+      oscillator.onended = () => {
+        audio.close().catch(() => {});
+      };
+    } catch {
+      // Ses desteklenmiyorsa oyun çalışmaya devam eder.
+    }
   };
 
   // Kayıt ol ve giriş yap
@@ -263,7 +324,7 @@ export default function Home() {
     }
   };
 
-  // Şifre sıfırlama bağlantısı gönder
+  // Şifre sıfırlama
   const resetPassword = async () => {
     if (!email.trim()) {
       notify("Lütfen e-posta adresini gir.");
@@ -332,9 +393,7 @@ export default function Home() {
 
     setNotice(error ? error.message : "Çıkış yapıldı.");
 
-    if (!error) {
-      setUser(null);
-    }
+    if (!error) setUser(null);
   };
 
   // VIP satın alma
@@ -352,9 +411,7 @@ export default function Home() {
 
     if (coins < selected.price) {
       notify(
-        `Yetersiz coin! ${selected.price.toLocaleString(
-          "tr-TR"
-        )} coin gerekiyor.`
+        `Yetersiz coin! ${formatCoins(selected.price)} coin gerekiyor.`
       );
       return;
     }
@@ -365,57 +422,211 @@ export default function Home() {
     notify(`${selected.name} başarıyla satın alındı! 👑`);
   };
 
-  // Mega Slot oyunu
-  const playSlot = () => {
-    if (slotSpinning) return;
+  // Bahis miktarını belirle
+  const selectBet = (amount) => {
+    if (slotSpinning || autoSpin) return;
 
-    if (coins < 100) {
-      notify("Çevirmek için en az 100 coin gerekiyor!");
+    setSlotBet(amount);
+    setCustomBet(String(amount));
+    setSlotMessage("");
+  };
+
+  const applyCustomBet = () => {
+    if (slotSpinning || autoSpin) return;
+
+    const amount = Number(customBet);
+
+    if (
+      !Number.isSafeInteger(amount) ||
+      amount < 100 ||
+      amount > 1000000
+    ) {
+      notify("Bahis 100 ile 1.000.000 coin arasında olmalı.");
       return;
     }
 
-    setCoins((current) => current - 100);
+    setSlotBet(amount);
+    setCustomBet(String(amount));
+    setSlotMessage("");
+    notify(`Bahis ${formatCoins(amount)} coin olarak ayarlandı.`);
+  };
+
+  // Ödül hesaplama
+  const calculateSlotPrize = (result, bet) => {
+    if (result.every((symbol) => symbol === "👑")) {
+      return {
+        base: bet * 100,
+        label: "👑 KRAL JACKPOT!",
+        type: "jackpot",
+        jackpot: true,
+      };
+    }
+
+    if (result.every((symbol) => symbol === "7️⃣")) {
+      return {
+        base: bet * 50,
+        label: "🎰 777 JACKPOT!",
+        type: "jackpot",
+        jackpot: true,
+      };
+    }
+
+    if (result.every((symbol) => symbol === result[0])) {
+      return {
+        base: bet * 10,
+        label: "💎 ÜÇ AYNI! MEGA KAZANÇ!",
+        type: "win",
+        jackpot: false,
+      };
+    }
+
+    if (
+      result[0] === result[1] ||
+      result[1] === result[2] ||
+      result[0] === result[2]
+    ) {
+      return {
+        base: bet * 2,
+        label: "✨ İKİ AYNI! KAZANDIN!",
+        type: "win",
+        jackpot: false,
+      };
+    }
+
+    return {
+      base: 0,
+      label: "🍀 Bu sefer olmadı. Tekrar dene!",
+      type: "lose",
+      jackpot: false,
+    };
+  };
+
+  // Tek slot turu
+  const playSlot = () => {
+    if (slotSpinning) return;
+
+    if (!Number.isSafeInteger(slotBet) || slotBet < 100) {
+      notify("Geçerli bir bahis miktarı seç.");
+      setAutoSpin(false);
+      return;
+    }
+
+    if (coins < slotBet) {
+      notify("Bahis için yeterli coin yok!");
+      setAutoSpin(false);
+      return;
+    }
+
+    setCoins((current) => current - slotBet);
     setSlotSpinning(true);
     setSlotMessage("");
+    setSlotEffect(false);
     setNotice("");
 
-    const symbols = ["🍒", "🍋", "🍇", "💎", "7️⃣"];
+    playSound("spin");
+
+    const duration = fastSpin ? 350 : 1200;
 
     setTimeout(() => {
       const result = Array.from(
         { length: 3 },
-        () =>
-          symbols[Math.floor(Math.random() * symbols.length)]
+        () => SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)]
       );
+
+      const prize = calculateSlotPrize(result, slotBet);
+
+      const vipMultiplier =
+        vip >= 2 ? 5 : vip === 1 ? 2 : 1;
+
+      const payout = Math.floor(prize.base * vipMultiplier);
 
       setSlotSymbols(result);
 
-      if (result.every((symbol) => symbol === "7️⃣")) {
-        setCoins((current) => current + 5000);
-        setTotalEarned((current) => current + 5000);
-        setJackpotWins((current) => current + 1);
+      if (payout > 0) {
+        setCoins((current) => current + payout);
+        setTotalEarned((current) => current + payout);
+        setSlotEffect(true);
 
-        setSlotMessage("🎉 JACKPOT! +5.000 COIN!");
-      } else if (result.every((symbol) => symbol === result[0])) {
-        setCoins((current) => current + 1000);
-        setTotalEarned((current) => current + 1000);
+        setSlotMessage(
+          `${prize.label} +${formatCoins(payout)} COIN` +
+            (vipMultiplier > 1
+              ? ` (VIP ${vipMultiplier}x dahil)`
+              : "")
+        );
 
-        setSlotMessage("💎 MEGA KAZANÇ! +1.000 COIN!");
-      } else if (
-        result[0] === result[1] ||
-        result[1] === result[2]
-      ) {
-        setCoins((current) => current + 200);
-        setTotalEarned((current) => current + 200);
-
-        setSlotMessage("✨ KAZANDIN! +200 COIN!");
+        playSound(prize.jackpot ? "jackpot" : "win");
       } else {
-        setSlotMessage("🍀 Bu sefer olmadı. Tekrar dene!");
+        setSlotMessage(prize.label);
+        playSound("lose");
+      }
+
+      if (prize.jackpot) {
+        setJackpotWins((current) => current + 1);
       }
 
       setGamesPlayed((current) => current + 1);
+
+      const historyItem = {
+        id: `${Date.now()}-${Math.random()}`,
+        symbols: result,
+        bet: slotBet,
+        payout,
+        label: prize.label,
+        time: new Date().toLocaleTimeString("tr-TR", {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+      };
+
+      setSlotHistory((current) =>
+        [historyItem, ...current].slice(0, 10)
+      );
+
       setSlotSpinning(false);
-    }, 1200);
+
+      if (autoSpin) {
+        setAutoRemaining((current) => {
+          const next = Math.max(0, current - 1);
+
+          if (next === 0 || coins < slotBet) {
+            setAutoSpin(false);
+          }
+
+          return next;
+        });
+      }
+    }, duration);
+  };
+
+  // Otomatik çevirme
+  useEffect(() => {
+    if (!autoSpin || slotSpinning || autoRemaining <= 0) return;
+
+    const timer = setTimeout(() => {
+      playSlot();
+    }, 250);
+
+    return () => clearTimeout(timer);
+  }, [autoSpin, slotSpinning, autoRemaining]);
+
+  const startAutoSpin = () => {
+    if (slotSpinning || autoSpin) return;
+
+    if (coins < slotBet) {
+      notify("Otomatik çevirmeye başlamak için yeterli coin yok!");
+      return;
+    }
+
+    setAutoRemaining(autoSpinCount);
+    setAutoSpin(true);
+    setSlotMessage("");
+    notify(`${autoSpinCount} turluk otomatik çevirme başladı.`);
+  };
+
+  const stopAutoSpin = () => {
+    setAutoSpin(false);
+    setAutoRemaining(0);
+    notify("Otomatik çevirme durduruldu.");
   };
 
   const achievements = {
@@ -444,6 +655,33 @@ export default function Home() {
         boxSizing: "border-box",
       }}
     >
+      <style>{`
+        @keyframes royalGlow {
+          0%, 100% { box-shadow: 0 0 15px #f5c54233; }
+          50% { box-shadow: 0 0 35px #f5c542aa; }
+        }
+        @keyframes royalWin {
+          0% { transform: scale(1); }
+          50% { transform: scale(1.08); }
+          100% { transform: scale(1); }
+        }
+        .royal-slot-symbol {
+          animation: royalGlow 1.5s infinite;
+        }
+        .royal-slot-win {
+          animation: royalWin 0.6s ease-in-out 2;
+        }
+        .royal-control {
+          min-height: 44px;
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .royal-slot-symbol,
+          .royal-slot-win {
+            animation: none;
+          }
+        }
+      `}</style>
+
       <h1
         style={{
           color: "#f5c542",
@@ -472,7 +710,7 @@ export default function Home() {
             margin: "8px 0",
           }}
         >
-          🪙 {coins.toLocaleString("tr-TR")}
+          🪙 {formatCoins(coins)}
         </div>
 
         <div style={{ color: "#c9c6d8" }}>
@@ -503,6 +741,7 @@ export default function Home() {
         ].map(([id, label]) => (
           <button
             key={id}
+            className="royal-control"
             onClick={() => {
               setPage(id);
               setNotice("");
@@ -540,7 +779,6 @@ export default function Home() {
       {page === "home" && (
         <section style={panelStyle}>
           <h2>✨ BOSS GAME&apos;e Hoş Geldin</h2>
-
           <p>Oyna, coin biriktir ve başarılarını aç!</p>
 
           <div
@@ -553,6 +791,7 @@ export default function Home() {
             }}
           >
             <button
+              className="royal-control"
               style={buttonStyle}
               onClick={() => setPage("slot")}
             >
@@ -560,6 +799,7 @@ export default function Home() {
             </button>
 
             <button
+              className="royal-control"
               style={buttonStyle}
               onClick={() => setPage("vip")}
             >
@@ -567,6 +807,7 @@ export default function Home() {
             </button>
 
             <button
+              className="royal-control"
               style={{
                 ...buttonStyle,
                 background: "#34344c",
@@ -580,12 +821,12 @@ export default function Home() {
         </section>
       )}
 
-      {/* SLOT OYUNU */}
+      {/* SLOT 2.0 */}
       {page === "slot" && (
         <section
           style={{
             ...panelStyle,
-            maxWidth: 500,
+            maxWidth: 540,
             background:
               "linear-gradient(180deg, #241333, #09090f)",
             border: "2px solid #f5c542",
@@ -595,14 +836,15 @@ export default function Home() {
           <h2
             style={{
               color: "#f5c542",
-              fontSize: 30,
+              fontSize: "clamp(26px, 6vw, 34px)",
+              marginTop: 4,
             }}
           >
-            👑 MEGA SLOT
+            👑 ROYAL MEGA SLOT
           </h2>
 
           <p style={{ color: "#ddd" }}>
-            Çevirme başına 100 coin
+            Bahsini seç, makaraları çevir ve ödülünü kazan!
           </p>
 
           <div
@@ -610,8 +852,8 @@ export default function Home() {
               display: "flex",
               justifyContent: "center",
               gap: 10,
-              margin: "28px 0",
-              padding: 18,
+              margin: "24px 0",
+              padding: 14,
               background: "#09090f",
               border: "2px solid #a855f7",
               borderRadius: 16,
@@ -620,12 +862,20 @@ export default function Home() {
             {slotSymbols.map((symbol, index) => (
               <div
                 key={index}
+                className={
+                  slotEffect && !slotSpinning
+                    ? "royal-slot-win"
+                    : "royal-slot-symbol"
+                }
                 style={{
-                  width: "min(25vw, 85px)",
-                  height: 95,
+                  flex: "1 1 0",
+                  minWidth: 0,
+                  maxWidth: 100,
+                  height: "clamp(75px, 19vw, 100px)",
                   display: "grid",
                   placeItems: "center",
-                  background: "#fff",
+                  background:
+                    "linear-gradient(180deg, #fff, #ded8f5)",
                   borderRadius: 12,
                   fontSize: "clamp(30px, 8vw, 48px)",
                   boxShadow: "inset 0 0 12px #f5c542",
@@ -639,58 +889,334 @@ export default function Home() {
           <div
             style={{
               color: "#f5c542",
-              fontSize: 20,
+              fontSize: 22,
+              fontWeight: "bold",
               margin: 16,
             }}
           >
-            🪙 Bakiye: {coins.toLocaleString("tr-TR")}
+            🪙 Bakiye: {formatCoins(coins)}
           </div>
 
+          {/* BAHİS SEÇİMİ */}
+          <h3 style={{ color: "#ddd" }}>💰 Bahis miktarı</h3>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns:
+                "repeat(2, minmax(0, 1fr))",
+              gap: 8,
+              margin: "12px 0",
+            }}
+          >
+            {[100, 250, 500, 1000].map((amount) => (
+              <button
+                key={amount}
+                className="royal-control"
+                disabled={slotSpinning || autoSpin}
+                onClick={() => selectBet(amount)}
+                style={{
+                  ...buttonStyle,
+                  background:
+                    slotBet === amount ? "#f5c542" : "#29243a",
+                  color: slotBet === amount ? "#111" : "white",
+                  border:
+                    slotBet === amount
+                      ? "2px solid #fff0a0"
+                      : "1px solid #555",
+                }}
+              >
+                🪙 {formatCoins(amount)}
+              </button>
+            ))}
+          </div>
+
+          <div
+            style={{
+              display: "flex",
+              gap: 8,
+              flexWrap: "wrap",
+              alignItems: "center",
+              justifyContent: "center",
+              margin: "14px 0",
+            }}
+          >
+            <input
+              aria-label="Özel bahis miktarı"
+              type="number"
+              min="100"
+              max="1000000"
+              step="1"
+              value={customBet}
+              disabled={slotSpinning || autoSpin}
+              onChange={(event) =>
+                setCustomBet(event.target.value)
+              }
+              style={{
+                ...inputStyle,
+                width: 190,
+                margin: 0,
+              }}
+            />
+
+            <button
+              className="royal-control"
+              disabled={slotSpinning || autoSpin}
+              onClick={applyCustomBet}
+              style={buttonStyle}
+            >
+              Bahsi Uygula
+            </button>
+          </div>
+
+          <p style={{ color: "#ddd" }}>
+            Seçili bahis:{" "}
+            <strong style={{ color: "#f5c542" }}>
+              {formatCoins(slotBet)} coin
+            </strong>
+          </p>
+
+          {/* HIZLI MOD VE SES */}
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "center",
+              gap: 10,
+              flexWrap: "wrap",
+              margin: "18px 0",
+            }}
+          >
+            <button
+              className="royal-control"
+              onClick={() => setFastSpin((current) => !current)}
+              style={{
+                ...buttonStyle,
+                background: fastSpin ? "#16a34a" : "#34344c",
+                color: "white",
+              }}
+            >
+              {fastSpin ? "⚡ Hızlı Mod: Açık" : "⚡ Hızlı Mod: Kapalı"}
+            </button>
+
+            <button
+              className="royal-control"
+              onClick={() => setSoundEnabled((current) => !current)}
+              style={{
+                ...buttonStyle,
+                background: soundEnabled ? "#16a34a" : "#34344c",
+                color: "white",
+              }}
+            >
+              {soundEnabled ? "🔊 Ses Açık" : "🔇 Ses Kapalı"}
+            </button>
+          </div>
+
+          {/* TEK TUR */}
           <button
+            className="royal-control"
             style={{
               ...buttonStyle,
               width: "100%",
               fontSize: 20,
               padding: 16,
               opacity:
-                slotSpinning || coins < 100 ? 0.5 : 1,
+                slotSpinning || autoSpin || coins < slotBet
+                  ? 0.5
+                  : 1,
             }}
-            disabled={slotSpinning || coins < 100}
+            disabled={
+              slotSpinning || autoSpin || coins < slotBet
+            }
             onClick={playSlot}
           >
             {slotSpinning
               ? "🎰 ÇEVRİLİYOR..."
-              : "🎰 100 COIN İLE ÇEVİR"}
+              : `🎰 ${formatCoins(slotBet)} COIN İLE ÇEVİR`}
           </button>
 
+          {/* OTOMATİK TUR */}
+          <h3 style={{ color: "#f5c542", marginTop: 26 }}>
+            🔄 Otomatik Çevirme
+          </h3>
+
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "center",
+              gap: 8,
+              flexWrap: "wrap",
+              margin: "12px 0",
+            }}
+          >
+            {[10, 25, 50].map((count) => (
+              <button
+                key={count}
+                className="royal-control"
+                disabled={slotSpinning || autoSpin}
+                onClick={() => setAutoSpinCount(count)}
+                style={{
+                  ...buttonStyle,
+                  background:
+                    autoSpinCount === count
+                      ? "#f5c542"
+                      : "#34344c",
+                  color:
+                    autoSpinCount === count ? "#111" : "white",
+                }}
+              >
+                {count} Tur
+              </button>
+            ))}
+          </div>
+
+          {!autoSpin ? (
+            <button
+              className="royal-control"
+              style={{
+                ...buttonStyle,
+                width: "100%",
+                background: "#7c3aed",
+                color: "white",
+                marginTop: 8,
+              }}
+              disabled={slotSpinning || coins < slotBet}
+              onClick={startAutoSpin}
+            >
+              ▶️ {autoSpinCount} Turu Başlat
+            </button>
+          ) : (
+            <button
+              className="royal-control"
+              style={{
+                ...buttonStyle,
+                width: "100%",
+                background: "#dc2626",
+                color: "white",
+                marginTop: 8,
+              }}
+              onClick={stopAutoSpin}
+            >
+              ⏹️ Otomatik Oyunu Durdur
+            </button>
+          )}
+
+          {autoSpin && (
+            <p style={{ color: "#c4b5fd" }}>
+              Kalan tur: {autoRemaining}
+            </p>
+          )}
+
+          {/* KAZANÇ MESAJI */}
           {slotMessage && (
             <div
               role="status"
+              className={
+                slotEffect ? "royal-slot-win" : ""
+              }
               style={{
-                marginTop: 20,
+                marginTop: 22,
+                padding: 16,
+                borderRadius: 12,
+                background: "#171326",
+                border: "1px solid #f5c542",
                 color: "#f5c542",
-                fontSize: 18,
+                fontSize: "clamp(16px, 4vw, 20px)",
                 fontWeight: "bold",
+                overflowWrap: "anywhere",
               }}
             >
               {slotMessage}
             </div>
           )}
 
+          {/* ÖDÜL TABLOSU */}
           <div
             style={{
-              display: "flex",
-              justifyContent: "center",
-              gap: 12,
-              flexWrap: "wrap",
-              marginTop: 20,
+              marginTop: 24,
+              padding: 14,
+              borderRadius: 12,
+              background: "#11101b",
+              textAlign: "left",
               color: "#ddd",
-              fontSize: 13,
+              fontSize: 14,
             }}
           >
-            <span>🍒 Üç aynı: 1.000 coin</span>
-            <span>7️⃣ Jackpot: 5.000 coin</span>
-            <span>✨ İki aynı: 200 coin</span>
+            <h3 style={{ color: "#f5c542", textAlign: "center" }}>
+              🏆 Ödül Tablosu
+            </h3>
+
+            <p>👑 👑 👑 — Bahsin 100 katı</p>
+            <p>7️⃣ 7️⃣ 7️⃣ — Bahsin 50 katı</p>
+            <p>💎 Üç aynı sembol — Bahsin 10 katı</p>
+            <p>✨ İki aynı sembol — Bahsin 2 katı</p>
+
+            <p style={{ color: "#aaa", fontSize: 12 }}>
+              Ödüller VIP çarpanı uygulanmadan önce hesaplanır.
+            </p>
+          </div>
+
+          {/* OYUN GEÇMİŞİ */}
+          <div
+            style={{
+              marginTop: 24,
+              textAlign: "left",
+              background: "#11101b",
+              padding: 14,
+              borderRadius: 12,
+            }}
+          >
+            <h3 style={{ color: "#f5c542", textAlign: "center" }}>
+              📜 Son 10 Oyun
+            </h3>
+
+            {slotHistory.length === 0 ? (
+              <p style={{ color: "#aaa", textAlign: "center" }}>
+                Henüz oyun geçmişin yok.
+              </p>
+            ) : (
+              <div>
+                {slotHistory.map((item) => (
+                  <div
+                    key={item.id}
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      gap: 8,
+                      padding: "10px 0",
+                      borderBottom: "1px solid #303047",
+                      fontSize: 13,
+                    }}
+                  >
+                    <div style={{ textAlign: "left" }}>
+                      <div style={{ fontSize: 20 }}>
+                        {item.symbols.join(" ")}
+                      </div>
+
+                      <div style={{ color: "#999" }}>
+                        {item.time} · Bahis {formatCoins(item.bet)}
+                      </div>
+
+                      <div style={{ color: "#c9c6d8" }}>
+                        {item.label}
+                      </div>
+                    </div>
+
+                    <strong
+                      style={{
+                        color:
+                          item.payout > 0 ? "#5be39a" : "#ff7777",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {item.payout > 0
+                        ? `+${formatCoins(item.payout)}`
+                        : "0"}
+                    </strong>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           <p
@@ -763,7 +1289,7 @@ export default function Home() {
                       margin: "18px 0",
                     }}
                   >
-                    🪙 {level.price.toLocaleString("tr-TR")}
+                    🪙 {formatCoins(level.price)}
                   </div>
 
                   {level.features.map((feature) => (
@@ -773,6 +1299,7 @@ export default function Home() {
                   ))}
 
                   <button
+                    className="royal-control"
                     style={{
                       ...buttonStyle,
                       width: "100%",
@@ -884,6 +1411,7 @@ export default function Home() {
               <p>Hesabın: {user.email}</p>
 
               <button
+                className="royal-control"
                 style={buttonStyle}
                 onClick={signOut}
               >
@@ -898,20 +1426,19 @@ export default function Home() {
                 type="password"
                 placeholder="Yeni şifre (en az 6 karakter)"
                 value={newPassword}
-                onChange={(e) =>
-                  setNewPassword(e.target.value)
+                onChange={(event) =>
+                  setNewPassword(event.target.value)
                 }
                 style={inputStyle}
               />
 
               <button
+                className="royal-control"
                 style={buttonStyle}
                 disabled={authBusy}
                 onClick={updatePassword}
               >
-                {authBusy
-                  ? "Bekle..."
-                  : "Yeni Şifreyi Kaydet"}
+                {authBusy ? "Bekle..." : "Yeni Şifreyi Kaydet"}
               </button>
             </>
           ) : (
@@ -924,9 +1451,7 @@ export default function Home() {
                 type="email"
                 placeholder="E-posta adresin"
                 value={email}
-                onChange={(e) =>
-                  setEmail(e.target.value)
-                }
+                onChange={(event) => setEmail(event.target.value)}
                 style={inputStyle}
               />
 
@@ -934,8 +1459,8 @@ export default function Home() {
                 type="password"
                 placeholder="Şifren (en az 6 karakter)"
                 value={password}
-                onChange={(e) =>
-                  setPassword(e.target.value)
+                onChange={(event) =>
+                  setPassword(event.target.value)
                 }
                 style={inputStyle}
               />
@@ -950,6 +1475,7 @@ export default function Home() {
                 }}
               >
                 <button
+                  className="royal-control"
                   style={buttonStyle}
                   disabled={authBusy}
                   onClick={() => handleAuth("signup")}
@@ -958,6 +1484,7 @@ export default function Home() {
                 </button>
 
                 <button
+                  className="royal-control"
                   style={{
                     ...buttonStyle,
                     background: "#34344c",
@@ -971,6 +1498,7 @@ export default function Home() {
               </div>
 
               <button
+                className="royal-control"
                 disabled={authBusy}
                 onClick={resetPassword}
                 style={{
@@ -999,7 +1527,7 @@ export default function Home() {
         BOSS GAME © 2026
 
         <p style={{ fontSize: 12 }}>
-          Oyun içi coinler demo sürümünde tarayıcıda saklanır.
+          Coin ve oyun geçmişi bu tarayıcıda saklanır.
         </p>
       </footer>
     </main>

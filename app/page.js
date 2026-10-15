@@ -2010,6 +2010,183 @@ const renderAdminPanel = () => (
       </div>
     </section>
   );
+// DÖNME DOLAP OYUNU
+const renderWheel = () => (
+  <section style={panelStyle}>
+    <h2 style={{ color: "#f5c542", textAlign: "center" }}>
+      🎡 DÖNME DOLAP
+    </h2>
+
+    <p style={{ textAlign: "center", color: "#fff" }}>
+      Bakiyen: 🪙 {formatCoins(data.coins)}
+    </p>
+
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(3, 1fr)",
+        gap: 10,
+        margin: "20px 0",
+      }}
+    >
+      {[45, 5, 10, 15, 25, 20, 1000, 1].map((multiplier) => (
+        <div
+          key={multiplier}
+          style={{
+            padding: "18px 4px",
+            textAlign: "center",
+            borderRadius: 12,
+            background: "linear-gradient(145deg, #29203b, #11111c)",
+            border: "1px solid #f5c542",
+            color: "#f5c542",
+            fontSize: 20,
+            fontWeight: "bold",
+          }}
+        >
+          {multiplier}x
+        </div>
+      ))}
+    </div>
+
+    <label style={{ color: "#fff" }}>Bahis miktarı:</label>
+
+    <input
+      type="number"
+      min="1"
+      max="1000000000"
+      value={wheelBet}
+      disabled={wheelSpinning}
+      onChange={(e) => {
+        const value = Number(e.target.value);
+        setWheelBet(
+          Math.max(1, Math.min(1000000000, value || 1))
+        );
+      }}
+      style={inputStyle}
+    />
+
+    <p style={{ color: "#aaaabc", textAlign: "center" }}>
+      En yüksek bahis: 1.000.000.000 coin
+    </p>
+
+    <button
+      disabled={wheelSpinning || data.coins < wheelBet}
+      onClick={() => {
+        if (wheelSpinning || data.coins < wheelBet) return;
+
+        setWheelSpinning(true);
+        setWheelResult(null);
+        setWheelMessage("🎡 Çark dönüyor...");
+
+        setData((prev) => ({
+          ...prev,
+          coins: prev.coins - wheelBet,
+          gamesPlayed: prev.gamesPlayed + 1,
+        }));
+
+        setTimeout(() => {
+          const multipliers = [45, 5, 10, 15, 25, 20, 1000, 1];
+          const multiplier =
+            multipliers[Math.floor(Math.random() * multipliers.length)];
+
+          const payout = wheelBet * multiplier;
+
+          setData((prev) => ({
+            ...prev,
+            coins: prev.coins + payout,
+            totalEarned: prev.totalEarned + payout,
+            jackpotWins:
+              prev.jackpotWins + (multiplier === 1000 ? 1 : 0),
+            xp: prev.xp + 25,
+            level: Math.floor((prev.xp + 25) / 1000) + 1,
+          }));
+
+          setWheelResult(multiplier);
+          setWheelMessage(
+            `🎉 ${multiplier}x kazandın! Ödül: ${formatCoins(payout)} coin`
+          );
+          setWheelSpinning(false);
+
+          const entry = {
+            win: payout,
+            multiplier,
+            date: new Date().toLocaleString("tr-TR"),
+          };
+
+          setWheelLeaderboard((prev) => {
+            const updated = [entry, ...prev]
+              .sort((a, b) => b.win - a.win)
+              .slice(0, 10);
+
+            try {
+              localStorage.setItem(
+                "royal-spin-wheel-leaderboard",
+                JSON.stringify(updated)
+              );
+            } catch (error) {
+              console.error("Liderlik listesi kaydedilemedi", error);
+            }
+
+            return updated;
+          });
+        }, 1500);
+      }}
+      style={{
+        ...buttonStyle,
+        display: "block",
+        width: "100%",
+        fontSize: 18,
+        padding: 16,
+        opacity: wheelSpinning || data.coins < wheelBet ? 0.5 : 1,
+      }}
+    >
+      {wheelSpinning ? "🎡 DÖNÜYOR..." : "🎡 ÇARKI ÇEVİR"}
+    </button>
+
+    {wheelMessage && (
+      <h3 style={{ color: "#f5c542", textAlign: "center" }}>
+        {wheelMessage}
+      </h3>
+    )}
+
+    {wheelResult !== null && (
+      <p style={{ color: "#65e6a1", textAlign: "center" }}>
+        Sonuç: {wheelResult}x
+      </p>
+    )}
+
+    <div style={{ ...cardStyle, marginTop: 20 }}>
+      <h3 style={{ color: "#f5c542" }}>🏆 En Çok Kazananlar</h3>
+
+      {wheelLeaderboard.length === 0 ? (
+        <p style={{ color: "#aaaabc" }}>
+          Henüz kazanan yok. İlk kazanan sen ol!
+        </p>
+      ) : (
+        wheelLeaderboard.map((player, index) => (
+          <div
+            key={`${player.date}-${index}`}
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              gap: 8,
+              padding: "10px 0",
+              borderBottom: "1px solid #35354c",
+              color: "#fff",
+            }}
+          >
+            <span>
+              {index + 1}. {player.multiplier}x
+            </span>
+            <strong style={{ color: "#f5c542" }}>
+              {formatCoins(player.win)} coin
+            </strong>
+          </div>
+        ))
+      )}
+    </div>
+  </section>
+);
   // Profil ekranı
   const renderProfile = () => (
     <section style={panelStyle}>

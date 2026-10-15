@@ -233,6 +233,11 @@ const [adminBusy, setAdminBusy] = useState(false);
   ]);
 
   const [slotSpinning, setSlotSpinning] = useState(false);
+  const [wheelBet, setWheelBet] = useState(1000);
+const [wheelSpinning, setWheelSpinning] = useState(false);
+const [wheelResult, setWheelResult] = useState(null);
+const [wheelMessage, setWheelMessage] = useState("");
+const [wheelLeaderboard, setWheelLeaderboard] = useState([]);
   const [slotMessage, setSlotMessage] = useState("");
   const [slotBet, setSlotBet] = useState(100);
   const [customBet, setCustomBet] = useState("100");

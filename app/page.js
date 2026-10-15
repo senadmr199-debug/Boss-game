@@ -3080,7 +3080,7 @@ const renderWheel = () => (
       {page === "home" && renderHome()}
 
       {page === "slot" && renderSlot()}
-
+      {page === "wheel" && renderWheel()}
       {page === "profile" && renderProfile()}
 
       {page === "diamonds" && renderDiamonds()}

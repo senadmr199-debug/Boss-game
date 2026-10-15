@@ -33,41 +33,30 @@ const DEFAULT_DATA = {
 };
 
 const VIP_LEVELS = [
-{ id: 1, name: “VIP 1”, price: 10000, multiplier: 1.1, features: [“✨ VIP kullanıcı adı”, “💰 1.1x oyun kazancı”] },
-{ id: 2, name: “VIP 2”, price: 50000, multiplier: 1.2, features: [“✨ Özel kullanıcı adı”, “💰 1.2x oyun kazancı”] },
-{ id: 3, name: “VIP 3”, price: 100000, multiplier: 1.3, features: [“🌟 Parlak kullanıcı adı”, “💰 1.3x oyun kazancı”] },
-{ id: 4, name: “VIP 4”, price: 500000, multiplier: 1.4, features: [“🌟 Özel profil görünümü”, “💰 1.4x oyun kazancı”] },
-{ id: 5, name: “VIP 5”, price: 1000000, multiplier: 1.5, features: [“👑 Prestijli üyelik”, “💰 1.5x oyun kazancı”] },
-{ id: 6, name: “VIP 6”, price: 5000000, multiplier: 1.6, features: [“💎 Elit kullanıcı adı”, “💰 1.6x oyun kazancı”] },
-{ id: 7, name: “VIP 7”, price: 10000000, multiplier: 1.7, features: [“🔥 Efsane üyelik”, “💰 1.7x oyun kazancı”] },
-{ id: 8, name: “VIP 8”, price: 50000000, multiplier: 1.8, features: [“🏆 En üst VIP seviyesi”, “💰 1.8x oyun kazancı”] },
+  { id: 1, name: "VIP 1", price: 10000, multiplier: 1.1, features: ["✨ VIP kullanıcı adı", "💰 1.1x oyun kazancı"] },
+  { id: 2, name: "VIP 2", price: 50000, multiplier: 1.2, features: ["✨ Özel kullanıcı adı", "💰 1.2x oyun kazancı"] },
+  { id: 3, name: "VIP 3", price: 100000, multiplier: 1.3, features: ["🌟 Parlak kullanıcı adı", "💰 1.3x oyun kazancı"] },
+  { id: 4, name: "VIP 4", price: 500000, multiplier: 1.4, features: ["🌟 Özel profil görünümü", "💰 1.4x oyun kazancı"] },
+  { id: 5, name: "VIP 5", price: 1000000, multiplier: 1.5, features: ["👑 Prestijli üyelik", "💰 1.5x oyun kazancı"] },
+  { id: 6, name: "VIP 6", price: 5000000, multiplier: 1.6, features: ["💎 Elit kullanıcı adı", "💰 1.6x oyun kazancı"] },
+  { id: 7, name: "VIP 7", price: 10000000, multiplier: 1.7, features: ["🔥 Efsane üyelik", "💰 1.7x oyun kazancı"] },
+  { id: 8, name: "VIP 8", price: 50000000, multiplier: 1.8, features: ["🏆 En üst VIP seviyesi", "💰 1.8x oyun kazancı"] },
 ];
 
 const SVIP_LEVELS = [
-{
-id: 1,
-name: “SVIP 1”,
-price: 100000000,
-multiplier: 2,
-features: [
-“🌈 Renkli kullanıcı adı”,
-“💰 2x oyun kazancı”,
-“📢 Özel bildirim”,
-“☑️ Onaylı kullanıcı rozeti”,
-],
-},
-{
-id: 2,
-name: “SVIP 2”,
-price: 150000000,
-multiplier: 5,
-features: [
-“👑 Özel kullanıcı adı”,
-“💎 5x oyun kazancı”,
-“☑️ Onaylı kullanıcı rozeti”,
-],
-},
-];
+  {
+    id: 1,
+    name: "SVIP 1",
+    price: 100000000,
+    multiplier: 2,
+    features: [
+      "🌈 Renkli kullanıcı adı",
+      "💰 2x oyun kazancı",
+      "📢 Özel bildirim",
+      "☑️ Onaylı kullanıcı rozeti",
+    ],
+  },
+  {
     id: 2,
     name: "SVIP 2",
     price: 150000000,

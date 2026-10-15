@@ -1009,6 +1009,43 @@ const answerSupport = (rawText) => {
   fontWeight: 800,
   fontSize: 13,
 };
+  // Oyuncunun coin ve elmas bakiyesini Supabase ile eşitle
+useEffect(() => {
+  if (!loaded || !user?.id) return;
+
+  let cancelled = false;
+
+  const syncBalance = async () => {
+    const { data: balance, error } = await supabase
+      .from("player_game_balances")
+      .select("coins, diamonds, vip")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (cancelled) return;
+
+    if (error) {
+      console.error("Bakiye eşitleme hatası:", error.message);
+      return;
+    }
+
+    if (balance) {
+      setData((current) => ({
+        ...current,
+        coins: Number(balance.coins ?? current.coins),
+        diamonds: Number(balance.diamonds ?? current.diamonds),
+        vip: Number(balance.vip ?? current.vip),
+        vipLevel: Number(balance.vip ?? current.vipLevel),
+      }));
+    }
+  };
+
+  syncBalance();
+
+  return () => {
+    cancelled = true;
+  };
+}, [loaded, user?.id]);
     // Menü seçenekleri
  const isAdmin =
   user?.email?.toLowerCase() === "erenyalcin1906@gmail.com";

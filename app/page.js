@@ -828,28 +828,55 @@ const answerSupport = (rawText) => {
     );
   };
 
-if (!selected) return;
+  // VIP satın alma
+  const buyVIP = (vipLevel) => {
+    const selected = VIP_LEVELS.find((item) => item.id === vipLevel);
 
-if ((data.vipLevel || 0) >= vipLevel) {
-  notify("👑 Bu VIP seviyesine zaten sahipsin!");
-  return;
-}
+    if (!selected) return;
 
-if (data.coins < selected.price) {
-  notify(
-    `❌ Bu VIP için ${formatCoins(selected.price)} coin gerekiyor.`
-  );
-  return;
-}
+    if ((data.vipLevel || 0) >= vipLevel) {
+      notify("👑 Bu VIP seviyesine zaten sahipsin!");
+      return;
+    }
 
-setData((previous) => ({
-  ...previous,
-  coins: previous.coins - selected.price,
-  vipLevel: vipLevel,
-}));
+    if (data.coins < selected.price) {
+      notify(`❌ Bu VIP için ${formatCoins(selected.price)} coin gerekiyor.`);
+      return;
+    }
 
-notify(`👑 ${selected.name} satın alındı!`);
+    setData((previous) => ({
+      ...previous,
+      coins: previous.coins - selected.price,
+      vipLevel,
+    }));
 
+    notify(`👑 ${selected.name} satın alındı!`);
+  };
+
+  // SVIP satın alma
+  const buySVIP = (svipLevel) => {
+    const selected = SVIP_LEVELS.find((item) => item.id === svipLevel);
+
+    if (!selected) return;
+
+    if ((data.svipLevel || 0) >= svipLevel) {
+      notify("💎 Bu SVIP seviyesine zaten sahipsin!");
+      return;
+    }
+
+    if (data.coins < selected.price) {
+      notify(`❌ Bu SVIP için ${formatCoins(selected.price)} coin gerekiyor.`);
+      return;
+    }
+
+    setData((previous) => ({
+      ...previous,
+      coins: previous.coins - selected.price,
+      svipLevel,
+    }));
+
+    notify(`💎 ${selected.name} satın alındı!`);
+  };
   // Elmasla çerçeve satın al
   const buyFrame = (frame) => {
     if (data.ownedFrames.includes(frame.id)) {

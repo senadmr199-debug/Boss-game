@@ -220,6 +220,12 @@ const [supportMessages, setSupportMessages] = useState([
   const [user, setUser] = useState(null);
   const [authBusy, setAuthBusy] = useState(false);
 
+ const [adminPlayers, setAdminPlayers] = useState([]);
+const [adminTargetEmail, setAdminTargetEmail] = useState("");
+const [adminCoinChange, setAdminCoinChange] = useState("10000");
+const [adminDiamondChange, setAdminDiamondChange] = useState("0");
+const [adminVipLevel, setAdminVipLevel] = useState("");
+const [adminBusy, setAdminBusy] = useState(false); 
   const [slotSymbols, setSlotSymbols] = useState([
     "🍒",
     "👑",
@@ -1004,8 +1010,201 @@ const answerSupport = (rawText) => {
   fontSize: 13,
 };
     // Menü seçenekleri
+ const isAdmin =
+  user?.email?.toLowerCase() === "erenyalcin1906@gmail.com";
+
+const loadAdminPlayers = async () => {
+  if (!isAdmin) {
+    notify("⛔ Admin yetkisi gerekli.");
+    return;
+  }
+
+  setAdminBusy(true);
+
+  const { data: players, error } = await supabase.rpc(
+    "admin_list_players"
+  );
+
+  setAdminBusy(false);
+
+  if (error) {
+    notify("❌ Oyuncular yüklenemedi: " + error.message);
+    return;
+  }
+
+  setAdminPlayers(players || []);
+  notify("✅ Oyuncu listesi yenilendi.");
+};
+
+const submitAdminAdjustment = async (event) => {
+  event.preventDefault();
+
+  if (!isAdmin) {
+    notify("⛔ Admin yetkisi gerekli.");
+    return;
+  }
+
+  if (!adminTargetEmail.trim()) {
+    notify("⚠️ Oyuncunun e-posta adresini yaz.");
+    return;
+  }
+
+  const coinChange = Number(adminCoinChange || 0);
+  const diamondChange = Number(adminDiamondChange || 0);
+  const vipLevel =
+    adminVipLevel === "" ? null : Number(adminVipLevel);
+
+  if (
+    !Number.isSafeInteger(coinChange) ||
+    !Number.isSafeInteger(diamondChange)
+  ) {
+    notify("⚠️ Coin ve elmas miktarı tam sayı olmalı.");
+    return;
+  }
+
+  setAdminBusy(true);
+
+  const { error } = await supabase.rpc("admin_adjust_player", {
+    target_email: adminTargetEmail.trim(),
+    coin_change: coinChange,
+    diamond_change: diamondChange,
+    vip_level: vipLevel,
+  });
+
+  setAdminBusy(false);
+
+  if (error) {
+    notify("❌ İşlem başarısız: " + error.message);
+    return;
+  }
+
+  notify("✅ Oyuncu bilgileri güncellendi.");
+  await loadAdminPlayers();
+};
+
+const renderAdminPanel = () => (
+  <section style={{ ...panelStyle, marginTop: 16 }}>
+    <h2 style={{ color: "#f5d36b" }}>
+      🛡️ Admin Coins Paneli
+    </h2>
+
+    <p>Yetkili hesap: {user?.email}</p>
+
+    <p style={{ color: "#aaa", fontSize: 13 }}>
+      Eklemek için pozitif, azaltmak için negatif sayı gir.
+    </p>
+
+    <form
+      onSubmit={submitAdminAdjustment}
+      style={{ display: "grid", gap: 12 }}
+    >
+      <label>
+        Oyuncunun e-posta adresi
+        <input
+          type="email"
+          required
+          value={adminTargetEmail}
+          onChange={(event) =>
+            setAdminTargetEmail(event.target.value)
+          }
+          placeholder="oyuncu@ornek.com"
+          style={inputStyle}
+        />
+      </label>
+
+      <label>
+        💰 Coin miktarı (+ ekle / - azalt)
+        <input
+          type="number"
+          step="1"
+          value={adminCoinChange}
+          onChange={(event) =>
+            setAdminCoinChange(event.target.value)
+          }
+          style={inputStyle}
+        />
+      </label>
+
+      <label>
+        💎 Elmas miktarı (+ ekle / - azalt)
+        <input
+          type="number"
+          step="1"
+          value={adminDiamondChange}
+          onChange={(event) =>
+            setAdminDiamondChange(event.target.value)
+          }
+          style={inputStyle}
+        />
+      </label>
+
+      <label>
+        👑 VIP seviyesi
+        <select
+          value={adminVipLevel}
+          onChange={(event) =>
+            setAdminVipLevel(event.target.value)
+          }
+          style={inputStyle}
+        >
+          <option value="">VIP seviyesini değiştirme</option>
+          <option value="0">VIP kaldır</option>
+          <option value="1">VIP 1</option>
+          <option value="2">VIP 2 / SVIP</option>
+        </select>
+      </label>
+
+      <button
+        type="submit"
+        disabled={adminBusy}
+        style={buttonStyle}
+      >
+        {adminBusy ? "⏳ İşleniyor..." : "💰 Bakiyeyi Güncelle"}
+      </button>
+
+      <button
+        type="button"
+        disabled={adminBusy}
+        onClick={loadAdminPlayers}
+        style={smallButtonStyle}
+      >
+        🔄 Oyuncuları Listele
+      </button>
+    </form>
+
+    <h3 style={{ color: "#f5d36b" }}>👥 Oyuncular</h3>
+
+    {adminPlayers.length === 0 ? (
+      <p>Oyuncuları görmek için listeleme düğmesine bas.</p>
+    ) : (
+      <div style={{ display: "grid", gap: 8 }}>
+        {adminPlayers.map((player) => (
+          <button
+            key={player.user_id}
+            type="button"
+            onClick={() =>
+              setAdminTargetEmail(player.email)
+            }
+            style={smallButtonStyle}
+          >
+            {player.email}
+            {" — "}
+            💰 {Number(player.coins).toLocaleString("tr-TR")}
+            {" — "}
+            💎 {Number(player.diamonds).toLocaleString("tr-TR")}
+            {" — "}
+            👑 VIP {player.vip}
+          </button>
+        ))}
+      </div>
+    )}
+  </section>
+);
   const menuItems = [
     { id: "home", label: "Ana Sayfa", icon: "🏠" },
+    ...(isAdmin
+  ? [{ id: "admin", label: "Admin Coins", icon: "🛡️" }]
+  : []),
     { id: "slot", label: "Slot", icon: "🎰" },
     { id: "profile", label: "Profil", icon: "👤" },
     { id: "diamonds", label: "Elmas", icon: "💎" },
@@ -2675,6 +2874,14 @@ const answerSupport = (rawText) => {
       {page === "badges" && renderBadges()}
 
       {page === "login" && renderLogin()}
+       {page === "admin" &&
+  (isAdmin ? (
+    renderAdminPanel()
+  ) : (
+    <section style={panelStyle}>
+      ⛔ Admin yetkisi gerekli.
+    </section>
+  ))}
 
       {page === "history" && (
         <section style={{ ...panelStyle, marginTop: 16 }}>

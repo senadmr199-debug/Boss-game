@@ -1525,8 +1525,8 @@ const renderAdminPanel = () => (
   </div>
 )}
   </div>
+      </div> 
   );
-      </div>
   // Ana sayfa
   const renderHome = () => (
     <section style={panelStyle}>

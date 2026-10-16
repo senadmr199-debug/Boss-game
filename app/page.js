@@ -233,6 +233,13 @@ const [adminBusy, setAdminBusy] = useState(false);
   ]);
 
   const [slotSpinning, setSlotSpinning] = useState(false);
+  const [zeusBet, setZeusBet] = useState(100);
+const [zeusSpinning, setZeusSpinning] = useState(false);
+const [zeusGrid, setZeusGrid] = useState(Array(30).fill("💎"));
+const [zeusMessage, setZeusMessage] = useState(
+  "Bahsini seç ve Zeus'un gücünü dene!"
+);
+const [zeusFreeSpins, setZeusFreeSpins] = useState(0);
   const [wheelBet, setWheelBet] = useState(1000);
 const [wheelSpinning, setWheelSpinning] = useState(false);
 const [wheelResult, setWheelResult] = useState(null);

@@ -1516,6 +1516,7 @@ const renderAdminPanel = () => (
     <span style={{ color: "#8fffc0" }}>☑️</span>
   </div>
 )}
+      </div>
   // Ana sayfa
   const renderHome = () => (
     <section style={panelStyle}>

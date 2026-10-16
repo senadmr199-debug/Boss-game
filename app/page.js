@@ -1464,35 +1464,58 @@ const renderAdminPanel = () => (
       </div>
 
       <div style={{ textAlign: "left", minWidth: 0 }}>
-        <div
-          style={{
-            color: activeFrameData?.color || "#f5c542",
-            fontWeight: 800,
-            overflowWrap: "anywhere",
-          }}
-        >
-          {data.profileName}
-        </div>
+<div
+  style={{
+    color: isAdmin ? "#ffd700" : activeFrameData?.color || "#f5c542",
+    fontWeight: 900,
+    overflowWrap: "anywhere",
+    fontSize: 17,
+    background: isAdmin
+      ? "linear-gradient(90deg, #fff0a6, #ffb700, #fff7cc, #e8a000)"
+      : "transparent",
+    backgroundClip: isAdmin ? "text" : "border-box",
+    WebkitBackgroundClip: isAdmin ? "text" : "border-box",
+    WebkitTextFillColor: isAdmin ? "transparent" : "inherit",
+    textShadow: isAdmin ? "0 0 12px rgba(255,193,7,0.45)" : "none",
+  }}
+>
+  {data.profileName}
+  {isAdmin && (
+    <span
+      style={{
+        marginLeft: 6,
+        fontSize: 15,
+        WebkitTextFillColor: "#ffd700",
+      }}
+    >
+      ✨
+    </span>
+  )}
+</div>
 
-        <div style={{ color: "#a9a9bd", fontSize: 12 }}>
-          Seviye {data.level} · {data.vip ? `SVIP ${data.vip}` : "Standart Üye"}
-        </div>
+{isAdmin && (
 
-        {user && (
-          <div
-            style={{
-              color: "#9fdfb1",
-              fontSize: 11,
-              overflowWrap: "anywhere",
-            }}
-          >
-            {user.email}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-
+  <div
+    style={{
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 5,
+      marginTop: 6,
+      padding: "5px 9px",
+      borderRadius: 20,
+      background: "linear-gradient(135deg, #493300, #b8860b, #493300)",
+      border: "1px solid #ffe08a",
+      color: "#fff3b0",
+      fontSize: 10,
+      fontWeight: 900,
+      letterSpacing: 0.5,
+      boxShadow: "0 0 12px rgba(255,193,7,0.25)",
+    }}
+  >
+    👑 ROYAL SPIN ADMİNİ
+    <span style={{ color: "#8fffc0" }}>☑️</span>
+  </div>
+)}
   // Ana sayfa
   const renderHome = () => (
     <section style={panelStyle}>

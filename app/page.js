@@ -3338,6 +3338,7 @@ const renderWheel = () => (
       {page === "home" && renderHome()}
 
       {page === "slot" && renderSlot()}
+      {page === "zeus" && renderZeus()}
       {page === "wheel" && renderWheel()}
       {page === "profile" && renderProfile()}
 

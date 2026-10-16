@@ -2126,6 +2126,149 @@ const playZeus = () => {
 
   setTimeout(() => setZeusSpinning(false), 700);
 };
+  // ZEUS ÇARPANI OYUN EKRANI
+  const renderZeus = () => (
+    <div style={{
+      minHeight: "100vh",
+      padding: "20px",
+      color: "#fff",
+      background: "linear-gradient(180deg, #160b35, #070711)",
+      textAlign: "center",
+      borderRadius: "18px"
+    }}>
+      <h1 style={{
+        color: "#ffd700",
+        fontSize: "30px",
+        textShadow: "0 0 15px #ff9900"
+      }}>
+        ⚡ ZEUS ÇARPANI ⚡
+      </h1>
+
+      <p style={{ color: "#ddd" }}>
+        Zeus'un gücünü dene, çarpanları yakala!
+      </p>
+
+      <div style={{
+        background: "linear-gradient(135deg, #38205f, #171126)",
+        border: "2px solid #d6aaff",
+        borderRadius: "15px",
+        padding: "15px",
+        margin: "15px 0"
+      }}>
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(6, minmax(0, 1fr))",
+          gap: "6px"
+        }}>
+          {zeusGrid.map((symbol, index) => (
+            <div key={index} style={{
+              background: "linear-gradient(145deg, #35245b, #171024)",
+              border: "1px solid #a77cff",
+              borderRadius: "8px",
+              minHeight: "48px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: "clamp(18px, 5vw, 28px)",
+              boxShadow: "0 0 8px #6f35aa"
+            }}>
+              {symbol}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div style={{
+        background: "#21133c",
+        border: "1px solid #ffd700",
+        borderRadius: "12px",
+        padding: "12px",
+        marginBottom: "15px"
+      }}>
+        <div>🪙 Bakiye: {Number(data.coins || 0).toLocaleString("tr-TR")} coin</div>
+        <div style={{ marginTop: "8px", color: "#ffd700" }}>
+          🎁 Ücretsiz dönüş: {zeusFreeSpins}
+        </div>
+      </div>
+
+      <div style={{ marginBottom: "15px" }}>
+        <p>Bahis miktarını seç:</p>
+
+        {[100, 250, 500, 1000].map((amount) => (
+          <button
+            key={amount}
+            onClick={() => setZeusBet(amount)}
+            disabled={zeusSpinning}
+            style={{
+              margin: "4px",
+              padding: "10px 12px",
+              borderRadius: "8px",
+              border: zeusBet === amount
+                ? "2px solid #ffd700"
+                : "1px solid #8064b4",
+              background: zeusBet === amount ? "#6740a0" : "#21133c",
+              color: "#fff",
+              fontWeight: "bold"
+            }}
+          >
+            {amount.toLocaleString("tr-TR")}
+          </button>
+        ))}
+      </div>
+
+      <div style={{
+        color: "#ffd700",
+        fontWeight: "bold",
+        minHeight: "45px",
+        margin: "12px 0"
+      }}>
+        {zeusMessage}
+      </div>
+
+      <button
+        onClick={playZeus}
+        disabled={zeusSpinning}
+        style={{
+          width: "100%",
+          maxWidth: "320px",
+          padding: "16px",
+          borderRadius: "12px",
+          border: "2px solid #ffe66d",
+          background: zeusSpinning
+            ? "#555"
+            : "linear-gradient(90deg, #a45b00, #ffd700, #a45b00)",
+          color: "#160b20",
+          fontSize: "20px",
+          fontWeight: "bold",
+          cursor: zeusSpinning ? "not-allowed" : "pointer",
+          boxShadow: "0 0 18px #c98c25"
+        }}
+      >
+        {zeusSpinning ? "⚡ DÖNÜYOR..." : "⚡ OYNA"}
+      </button>
+
+      <div style={{
+        display: "flex",
+        justifyContent: "center",
+        flexWrap: "wrap",
+        gap: "8px",
+        marginTop: "18px"
+      }}>
+        {["×2", "×3", "×5", "×10", "×25", "×50", "×100"].map((multiplier) => (
+          <span key={multiplier} style={{
+            background: "#38205f",
+            border: "1px solid #ffd700",
+            color: "#ffd700",
+            padding: "7px 10px",
+            borderRadius: "8px",
+            fontWeight: "bold"
+          }}>
+            {multiplier}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
 const renderWheel = () => (
   <section style={panelStyle}>
     <h2 style={{ color: "#f5c542", textAlign: "center" }}>

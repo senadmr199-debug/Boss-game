@@ -2043,6 +2043,89 @@ const renderAdminPanel = () => (
     </section>
   );
 // DÖNME DOLAP OYUNU
+// ZEUS ÇARPANI OYUN MOTORU
+const playZeus = () => {
+  if (zeusSpinning) return;
+
+  const freeSpin = zeusFreeSpins > 0;
+
+  if (!freeSpin && data.coins < zeusBet) {
+    setZeusMessage("❌ Yeterli coin yok!");
+    return;
+  }
+
+  setZeusSpinning(true);
+
+  if (freeSpin) {
+    setZeusFreeSpins((n) => n - 1);
+  } else {
+    setData((prev) => ({
+      ...prev,
+      coins: prev.coins - zeusBet,
+    }));
+  }
+
+  const symbols = ["💎", "🔴", "🟣", "🟢", "🟡", "👑", "⚡"];
+  const grid = Array.from({ length: 30 }, () =>
+    symbols[Math.floor(Math.random() * symbols.length)]
+  );
+
+  let kazanc = 0;
+  let carpan = 0;
+
+  const counts = {};
+
+  grid.forEach((symbol) => {
+    counts[symbol] = (counts[symbol] || 0) + 1;
+  });
+
+  Object.entries(counts).forEach(([symbol, count]) => {
+    if (count >= 8) {
+      const oran = count >= 15 ? 3 : count >= 12 ? 2 : 1;
+
+      kazanc += Math.floor(zeusBet * oran);
+
+      if (Math.random() < 0.35) {
+        const carpanlar = [2, 3, 5, 10, 25, 50, 100];
+
+        carpan +=
+          carpanlar[Math.floor(Math.random() * carpanlar.length)];
+      }
+    }
+  });
+
+  if (kazanc > 0 && carpan > 0) {
+    kazanc *= carpan;
+  }
+
+  setZeusGrid(grid);
+
+  if (Math.random() < 0.03) {
+    setZeusFreeSpins((n) => n + 5);
+    setZeusMessage("🎁 5 ÜCRETSİZ DÖNÜŞ KAZANDIN!");
+  } else if (kazanc > 0) {
+    setData((prev) => ({
+      ...prev,
+      coins: prev.coins + kazanc,
+      totalEarned: (prev.totalEarned || 0) + kazanc,
+      gamesPlayed: (prev.gamesPlayed || 0) + 1,
+    }));
+
+    setZeusMessage(
+      "⚡ " + (carpan > 0 ? "×" + carpan + " ÇARPAN! " : "") +
+      "🪙 " + kazanc.toLocaleString("tr-TR") + " COIN KAZANDIN!"
+    );
+  } else {
+    setData((prev) => ({
+      ...prev,
+      gamesPlayed: (prev.gamesPlayed || 0) + 1,
+    }));
+
+    setZeusMessage("🌩️ Bu tur kazanç yok. Tekrar dene!");
+  }
+
+  setTimeout(() => setZeusSpinning(false), 700);
+};
 const renderWheel = () => (
   <section style={panelStyle}>
     <h2 style={{ color: "#f5c542", textAlign: "center" }}>

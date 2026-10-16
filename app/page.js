@@ -1255,6 +1255,7 @@ const renderAdminPanel = () => (
   ? [{ id: "admin", label: "Admin Coins", icon: "🛡️" }]
   : []),
     { id: "slot", label: "Slot", icon: "🎰" },
+    { id: "zeus", label: "Zeus Çarpanı", icon: "⚡" },
     { id: "wheel", label: "Dönme Dolap", icon: "🎡" },
     { id: "profile", label: "Profil", icon: "👤" },
     { id: "diamonds", label: "Elmas", icon: "💎" },

@@ -2138,6 +2138,20 @@ const playZeus = () => {
       textAlign: "center",
       borderRadius: "18px"
     }}>
+    <img
+src=”/zeus-lightning.png”
+alt=“Royal Spin Zeus Çarpanı”
+style={{
+width: “100%”,
+maxWidth: “900px”,
+height: “auto”,
+display: “block”,
+margin: “0 auto 20px”,
+borderRadius: “16px”,
+border: “2px solid #ffd700”,
+boxShadow: “0 0 25px rgba(0, 150, 255, 0.8)”
+}}
+/>
       <h1 style={{
         color: "#ffd700",
         fontSize: "30px",

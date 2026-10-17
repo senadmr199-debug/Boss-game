@@ -2467,6 +2467,79 @@ const renderWheel = () => (
       <h2 style={{ color: "#f5c542", textAlign: "center" }}>
         👤 PROFİLİM
       </h2>
+<style>{`
+        @keyframes royalLionRoar {
+          0%, 100% {
+            transform: scale(1) translateY(0);
+          }
+          50% {
+            transform: scale(1.12) translateY(-8px);
+          }
+        }
+
+        @keyframes royalLightning {
+          0%, 90%, 100% {
+            opacity: 0.2;
+          }
+          92%, 96% {
+            opacity: 1;
+          }
+        }
+
+        @keyframes royalGoldGlow {
+          0%, 100% {
+            box-shadow: 0 0 12px #b8860b;
+          }
+          50% {
+            box-shadow: 0 0 35px #ffd700, 0 0 60px #ff8c00;
+          }
+        }
+
+        .royal-lion-stage {
+          position: relative;
+          overflow: hidden;
+          text-align: center;
+          padding: 24px 10px;
+          margin: 16px 0;
+          border: 2px solid #d4af37;
+          border-radius: 22px;
+          background: radial-gradient(ellipse, #492400, #100b08 70%);
+          animation: royalGoldGlow 2s infinite;
+        }
+
+        .royal-lion {
+          display: inline-block;
+          font-size: clamp(90px, 24vw, 145px);
+          line-height: 1.3;
+          filter: drop-shadow(0 0 18px #ffb000);
+          animation: royalLionRoar 1.8s infinite ease-in-out;
+        }
+
+        .royal-lightning {
+          position: absolute;
+          top: 12px;
+          font-size: 34px;
+          animation: royalLightning 2.5s infinite;
+        }
+
+        .royal-lightning-left {
+          left: 12px;
+        }
+
+        .royal-lightning-right {
+          right: 12px;
+          animation-delay: 1s;
+        }
+
+        .royal-lion-caption {
+          color: #ffd700;
+          font-size: 19px;
+          font-weight: 900;
+          letter-spacing: 3px;
+          text-shadow: 0 0 12px #ff8c00;
+        }
+      `}</style>
+
 
       {renderMiniProfile()}
 
